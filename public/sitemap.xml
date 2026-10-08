@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+<!-- Dynamic Sitemap for Shantamurthy Sri Shaneshwara Temple, Haadikere -->
+<!-- Generated for search engine indexing: Google, Bing, Yahoo, Yandex, DuckDuckGo -->
+  <url>
+    <loc>https://haadikereshanitemple.org/</loc>
+    <lastmod>2026-08-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="kn" href="https://haadikereshanitemple.org/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://haadikereshanitemple.org/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://haadikereshanitemple.org/" />
+  </url>
+  <url>
+    <loc>https://haadikereshanitemple.org/#about</loc>
+    <lastmod>2026-08-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="kn" href="https://haadikereshanitemple.org/#about" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://haadikereshanitemple.org/#about" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://haadikereshanitemple.org/#about" />
+  </url>
+  <url>
+    <loc>https://haadikereshanitemple.org/#gallery</loc>
+    <lastmod>2026-08-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="kn" href="https://haadikereshanitemple.org/#gallery" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://haadikereshanitemple.org/#gallery" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://haadikereshanitemple.org/#gallery" />
+  </url>
+  <url>
+    <loc>https://haadikereshanitemple.org/#seva</loc>
+    <lastmod>2026-08-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="kn" href="https://haadikereshanitemple.org/#seva" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://haadikereshanitemple.org/#seva" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://haadikereshanitemple.org/#seva" />
+  </url>
+  <url>
+    <loc>https://haadikereshanitemple.org/#contact</loc>
+    <lastmod>2026-08-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="kn" href="https://haadikereshanitemple.org/#contact" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://haadikereshanitemple.org/#contact" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://haadikereshanitemple.org/#contact" />
+  </url>
+</urlset>

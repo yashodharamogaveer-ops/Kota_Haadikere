@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Kannada:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", "Noto Sans Kannada", system-ui, sans-serif;
+  --font-display: "Playfair Display", serif;
+  --color-saffron-50: #fffaf0;
+  --color-saffron-100: #fef3c7;
+  --color-saffron-500: #f97316;
+  --color-saffron-600: #ea580c;
+  --color-saffron-700: #c2410c;
+  --color-temple-gold: #d97706;
+}
+
+/* Custom scroll behavior and styling */
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background-color: var(--color-saffron-100);
+  color: var(--color-saffron-700);
+}
+
+/* Seamless Hardware-Accelerated Marquee Animations */
+@keyframes marquee-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-marquee-scrolling {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 35s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-scrolling:hover {
+  animation-play-state: paused;
+}

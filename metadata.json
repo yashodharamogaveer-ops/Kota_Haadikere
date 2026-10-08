@@ -1,0 +1,6 @@
+{
+  "name": "Sri Shaneshwara Temple, Haadikere",
+  "description": "Bilingual website of Shantamurthy Sri Shaneshwara Temple, Sri Kshetra Haadikere. Includes dynamic sitemap.xml generator for SEO, home, about, gallery, seva offerings, contact forms, language toggle, and a responsive spiritual layout.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
