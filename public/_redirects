@@ -1,0 +1,2 @@
+# Netlify / Cloudflare Pages: real files (pre-rendered pages, assets) are served first, everything else is the app
+/*  /index.html  200

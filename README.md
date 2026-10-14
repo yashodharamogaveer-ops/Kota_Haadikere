@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Website (public)
 
-# Run and deploy your AI Studio app
+React + Vite + Tailwind. Reads everything from Supabase; edited through the separate **admin-panel** project.
 
-This contains everything you need to run your app locally.
+```bash
+cp .env.example .env     # fill in the two Supabase values
+npm install
+npm run dev              # http://localhost:3000
+npm run build            # → dist/  (also pre-renders pages, sitemap.xml, robots.txt, llms.txt)
+```
 
-View your app in AI Studio: https://ai.studio/apps/2f1da508-9372-4910-8039-afbb779e201e
+Host settings: build command `npm run build`, output folder `dist`. Environment variables
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` must be set on the host (the build reads the live content to generate
+the SEO files). `vercel.json` and `public/_redirects`/`_headers` are included.
 
-## Run Locally
+## What is automatic
+* Per-page title, description, canonical (`https://www.haadikereshaneshwara.com/...`), Open Graph / Twitter cards.
+* JSON-LD for Google: `HinduTemple`, `WebSite`, page type, `BreadcrumbList`, upcoming `Event`s.
+* Pre-rendered HTML for every page + `sitemap.xml`, `robots.txt` (Google, Bing and AI crawlers allowed) and `llms.txt`,
+  so AI bots that don’t run JavaScript still read the content.
+* Admin changes are live for visitors immediately; the pre-rendered pages/sitemap/llms.txt refresh on the next build
+  (use the **Rebuild now** button in the admin: SEO → Publish, after pasting your host’s deploy-hook URL).
+* WhatsApp links (floating button, footer, contact page, trustees) normalise the number so `wa.me` always accepts it.
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Developer notes
+* `src/lib/content.ts` – content model, defaults, WhatsApp helper; `src/lib/useSiteContent.ts` – loader + cache.
+* Inline texts use `tx('ಕನ್ನಡ', 'English')`; run `npm run extract-strings` after adding some, then sync the admin
+  (`npm run sync-shared` inside `admin-panel`).
+* With an empty database the site renders exactly like the original design.

@@ -8,28 +8,29 @@ if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
 
-import { 
-  Menu, 
-  X, 
-  Globe, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Clock, 
-  Sparkles, 
-  Play, 
-  Square, 
-  Volume2, 
-  VolumeX, 
-  Calendar, 
+import {
+  Menu,
+  X,
+  Globe,
+  MapPin,
+  Phone,
+  Mail,
+  Clock,
+  Sparkles,
+  Play,
+  Square,
+  Volume2,
+  VolumeX,
+  Calendar,
   ChevronRight,
   ChevronLeft,
-  CheckCircle2, 
+  CheckCircle2,
   Heart,
   ChevronDown,
   ArrowUp,
   Facebook,
   Instagram,
+  Youtube,
   Home,
   ZoomIn,
   ZoomOut,
@@ -48,6 +49,10 @@ import {
 import { translations, sevasList, chantsList, Language, PageType, Seva, Chant } from './types';
 import { MandalaWatermark, CornerRangoli, SpiritualBannerBorder } from './components/SpiritualOrnaments';
 import { Helmet } from './components/Helmet';
+import { getDefaultSeo } from './lib/seoDefaults';
+import { useSiteContent } from './lib/useSiteContent';
+import { makeTx, resolveTranslations, buildWhatsAppLink, toWhatsAppNumber, openWhatsApp } from './lib/content';
+import { resolvePageSeo, buildJsonLd, PAGE_PATHS, siteUrlOf, absoluteUrl, SeoPageKey } from './lib/seo';
 import { supabase } from './supabase';
 import { LazyImage } from './components/LazyImage';
 import { LazyVideo } from './components/LazyVideo';
@@ -68,10 +73,10 @@ import galleryShrine from './assets/images/gallery_shrine_1784205276240.jpg';
 import galleryFestive from './assets/images/gallery_festive_1784205700881.jpg';
 import galleryMisty from './assets/images/gallery_misty_1784205717145.jpg';
 import marriageHallPhoto from './assets/images/marriage_hall_1784213413334.jpg';
-import trusteePresidentPhoto from './assets/images/trustee_president_portrait_1784214644708.jpeg';
+import trusteePresidentPhoto from './assets/images/trustee_president_portrait_1784214644708.jpg';
 import trusteeAdminPhoto from './assets/images/trustee_admin_portrait_1784214658850.jpg';
 
-const heroSlides = [
+const defaultHeroSlides = [
   {
     image: heroBanner1,
     captionKn: "ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ ಶನೀಶ್ವರ ಜಾಗೃತ ತಾಣ",
@@ -79,15 +84,18 @@ const heroSlides = [
   },
   {
     image: herBanner2,
-    captionKn: "ಹಚ್ಚ ಹಸಿರಿನ ಸುಂದರ ಪ್ರಕೃತಿಯ ನಡುವೆ ಕಂಗೊಳಿಸುತ್ತಿರುವ ದೇಗುಲ",
-    captionEn: "Misty morning atmosphere of the sacred sanctuary"
+    captionKn: "ದೇವಸ್ಥಾನದ ಧಾರ್ಮಿಕ ಲಕ್ಷದೀಪೋತ್ಸವ ಮತ್ತು ವಿಶೇಷ ಅಲಂಕಾರ",
+    captionEn: "Lakhadeepotsava festive celebration & traditional decoration"
   },
   {
-    image: heroBanner3,
+    image: heroBanner1,
     captionKn: "ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ ಶನೀಶ್ವರ ಜಾಗೃತ ತಾಣ",
     captionEn: "The historical holy temple shrine of Haadikere"
   }
 ];
+
+// Used only when no WhatsApp number has been saved in the admin panel / database
+const FALLBACK_WHATSAPP = '919902207990';
 
 // Helper function to format dates beautifully in Kannada and English languages
 const formatDate = (dateStr: string, language: 'kn' | 'en') => {
@@ -95,7 +103,7 @@ const formatDate = (dateStr: string, language: 'kn' | 'en') => {
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
-    
+
     if (language === 'kn') {
       return d.toLocaleDateString('kn-IN', {
         weekday: 'long',
@@ -136,7 +144,7 @@ const cleanSupabaseHtml = (str: string) => {
                    .replace(/&rdquo;/g, '”')
                    .replace(/&lsquo;/g, '‘')
                    .replace(/&rsquo;/g, '’');
-  
+
   // Collapse excessive multi-newlines into clean double-newlines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
   cleaned = cleaned.replace(/ಶನೈಶ್ಚರ/g, 'ಶನೀಶ್ವರ');
@@ -161,12 +169,12 @@ const normalizeKannadaName = (val: any): any => {
 };
 
 // Breadcrumb Navigation Component
-const Breadcrumb = ({ 
-  currentPage, 
-  navigateToPage, 
-  lang, 
-  t 
-}: { 
+const Breadcrumb = ({
+  currentPage,
+  navigateToPage,
+  lang,
+  t
+}: {
   currentPage: PageType;
   navigateToPage: (page: PageType) => void;
   lang: Language;
@@ -175,14 +183,14 @@ const Breadcrumb = ({
   if (currentPage === 'home') return null;
 
   return (
-    <motion.nav 
+    <motion.nav
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
       className="flex items-center gap-2 text-stone-500 text-xs sm:text-sm font-medium mb-8 bg-stone-50 border border-stone-200/60 py-2 px-3.5 rounded-full w-fit shadow-xs relative z-20"
       aria-label="Breadcrumb"
     >
-      <button 
+      <button
         onClick={() => navigateToPage('home')}
         className="hover:text-saffron-600 transition-colors flex items-center gap-1.5 cursor-pointer font-semibold text-stone-600"
       >
@@ -199,9 +207,37 @@ const Breadcrumb = ({
 
 export default function App() {
   const [lang, setLang] = useState<Language>('kn');
-  
+
+  // Admin-managed content (branding, contact, hero slides, footer, SEO, text overrides ...)
+  const { content, seoRows } = useSiteContent();
+  const tx = makeTx(lang, content.strings);
+
   // Supabase live settings, committee members, sevas, gallery, and announcements state
-  const [settings, setSettings] = useState<any>(null);
+  const [dbSettings, setSettings] = useState<any>(null);
+
+  // Effective settings: admin panel content wins, then the legacy temple_profile row, then built-in defaults.
+  // (Only fields the admin actually filled in override anything.)
+  const settings = (() => {
+    const c = content.contact;
+    const addr = lang === 'kn' ? c.address_kn : c.address_en;
+    const merged: any = { ...(dbSettings || {}) };
+    if (content.branding.logo_url) merged.logo_url = content.branding.logo_url;
+    if (addr?.trim()) merged.address = addr;
+    if (c.email?.trim()) merged.email = c.email.trim();
+    if (c.whatsapp?.trim()) merged.whatsapp_number = c.whatsapp.trim();
+    if (c.phones && c.phones[0]) merged.phone_number = c.phones[0];
+    if (c.maps_embed_url?.trim()) merged.google_maps_embed_url = c.maps_embed_url.trim();
+    return Object.keys(merged).length ? merged : null;
+  })();
+
+  // Hero slides: admin slides replace the built-in ones when at least one is configured
+  const adminSlides = (content.hero.slides || []).filter(sl => sl && sl.image_url).map(sl => ({
+    image: sl.image_url,
+    captionKn: sl.caption_kn || sl.caption_en || '',
+    captionEn: sl.caption_en || sl.caption_kn || ''
+  }));
+  const heroSlides = adminSlides.length > 0 ? adminSlides : defaultHeroSlides;
+  const heroIntervalMs = Math.max(3, Math.min(30, Number(content.hero.interval_sec) || 6)) * 1000;
   const [trustees, setTrustees] = useState<any[]>([]);
   const [dbSevas, setDbSevas] = useState<any[]>([]);
   const [dbGallery, setDbGallery] = useState<any[]>([]);
@@ -565,6 +601,7 @@ export default function App() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [activeGalleryTab, setActiveGalleryTab] = useState<'images' | 'videos'>('images');
   const [currentSlide, setCurrentSlide] = useState(0);
+  const safeSlide = Math.min(currentSlide, Math.max(0, heroSlides.length - 1));
   const [activeEventIndex, setActiveEventIndex] = useState(0);
   const [isEventPosterZoomed, setIsEventPosterZoomed] = useState(false);
 
@@ -604,11 +641,12 @@ export default function App() {
 
   // Automatic Hero Carousel Transition
   useEffect(() => {
+    if (heroSlides.length < 2) return;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 6000); // Transitions every 6 seconds
+    }, heroIntervalMs);
     return () => clearInterval(timer);
-  }, [currentSlide]);
+  }, [currentSlide, heroSlides.length, heroIntervalMs]);
 
   // GSAP Section Refs
   const heroTextRef = useRef<HTMLDivElement | null>(null);
@@ -1466,7 +1504,7 @@ export default function App() {
     return () => mm.revert();
   }, [currentPage, isSevasLoading, isGalleryLoading, isEventsLoading, isTrusteesLoading]);
 
-  const t = translations[lang];
+  const t = resolveTranslations(lang, content);
 
   // Given exact Google Maps URL for Shantamurti Shanishwar Convention Hall
   const CANONICAL_SHANTAMURTI_DIRECTIONS_URL = "https://maps.app.goo.gl/wafQnU8wtXiP43dL9";
@@ -1485,10 +1523,7 @@ export default function App() {
           url = match[1];
         }
       }
-      if (
-        (url.includes('google.com/maps/embed') || url.includes('output=embed')) &&
-        (url.includes('0x3bbc970046bdb13d') || url.includes('Shantamurti') || url.includes('shanishwar') || url.includes('Haadikere'))
-      ) {
+      if (/^https:\/\/(www\.)?google\.[a-z.]+\/maps\/embed/i.test(url) || /^https:\/\/maps\.google\.[a-z.]+\/.*output=embed/i.test(url)) {
         return url;
       }
     }
@@ -1496,8 +1531,13 @@ export default function App() {
     return CANONICAL_SHANTAMURTI_MAP_EMBED_URL;
   };
 
-  const templeDirectionsUrl = CANONICAL_SHANTAMURTI_DIRECTIONS_URL;
-  
+  const templeDirectionsUrl = content.contact.directions_url?.trim() || CANONICAL_SHANTAMURTI_DIRECTIONS_URL;
+
+  // WhatsApp: number comes from the admin panel (or temple_profile) and is normalised so wa.me always accepts it.
+  const temple_wa_number = toWhatsAppNumber(settings?.whatsapp_number) || FALLBACK_WHATSAPP;
+  const waGreeting = (lang === 'kn' ? content.contact.whatsapp_message_kn : content.contact.whatsapp_message_en) || '';
+  const templeWhatsAppUrl = buildWhatsAppLink(temple_wa_number, waGreeting);
+
   // Combine notifications and announcements dynamically from Supabase, resolving column types & language fallback
   const allNotifications = [
     ...(notifications || []).map((n, idx) => ({
@@ -1511,7 +1551,7 @@ export default function App() {
       id: a.id || `ann-${idx}`,
       text: lang === 'kn'
         ? (a.message_kn || a.text_kn || a.content_kn || a.title_kn || a.message || a.text || a.content || a.title || '').trim()
-        : (a.message || a.text || a.content || a.title || a.message_kn || a.text_kn || a.content_kn || a.title_kn || '').trim(),
+        : (a.message_en || a.title_en || a.message || a.text || a.content || a.title || a.message_kn || a.text_kn || a.content_kn || a.title_kn || '').trim(),
       created_at: a.created_at
     }))
   ].filter(item => item.text && item.text !== '');
@@ -1521,7 +1561,7 @@ export default function App() {
     const extractPriceValue = (item: any): number => {
       if (!item) return 0;
       const possibleKeys = ['price', 'amount', 'cost', 'seva_price', 'seva_amount', 'charge', 'charges', 'fee', 'fees', 'rate', 'value'];
-      
+
       let rawVal: any = undefined;
       for (const key of possibleKeys) {
         if (item[key] !== undefined && item[key] !== null) {
@@ -1529,7 +1569,7 @@ export default function App() {
           break;
         }
       }
-      
+
       if (rawVal === undefined || rawVal === null) {
         const keys = Object.keys(item);
         for (const key of keys) {
@@ -1540,7 +1580,7 @@ export default function App() {
           }
         }
       }
-      
+
       let num = NaN;
       if (typeof rawVal === 'number') {
         num = rawVal;
@@ -1548,18 +1588,18 @@ export default function App() {
         const cleanStr = rawVal.replace(/[^\d.]/g, '');
         num = parseFloat(cleanStr);
       }
-      
+
       if (isNaN(num) || num <= 0) {
         const sId = item.id?.toString().toLowerCase() || '';
         const sName = (item.name || item.name_kn || '').toLowerCase();
-        const fallbackItem = 
+        const fallbackItem =
           sevasList['en'].find(fallback => fallback.id?.toLowerCase() === sId || sName.includes(fallback.id?.toLowerCase()) || fallback.name?.toLowerCase().includes(sName)) ||
           sevasList['kn'].find(fallback => fallback.id?.toLowerCase() === sId || fallback.name?.toLowerCase().includes(sName));
         if (fallbackItem) {
           return fallbackItem.price;
         }
       }
-      
+
       return isNaN(num) ? 50 : num;
     };
 
@@ -1614,13 +1654,13 @@ export default function App() {
   const rawGallery = supabase ? dbGallery : (dbGallery && dbGallery.length > 0 ? dbGallery : defaultGalleryItems);
   const galleryItems = rawGallery.map((g, idx) => {
     const src = g.src || g.image_url || g.url || g.video_url || g.media_url || '';
-    const isVideo = g.type === 'video' || 
-                    (g.video_url ? true : false) || 
+    const isVideo = g.type === 'video' ||
+                    (g.video_url ? true : false) ||
                     (typeof src === 'string' && (
-                      src.endsWith('.mp4') || 
-                      src.endsWith('.webm') || 
+                      src.endsWith('.mp4') ||
+                      src.endsWith('.webm') ||
                       src.endsWith('.ogg') ||
-                      src.includes('youtube.com') || 
+                      src.includes('youtube.com') ||
                       src.includes('youtu.be')
                     ));
     return {
@@ -1643,7 +1683,7 @@ export default function App() {
       name_kn: "ಶ್ರೀ ಕೆ. ಭಾಸ್ಕರ್",
       photo_url: trusteePresidentPhoto,
       phone: "+91 99022 07990",
-      email: "shanthamoorthyshaneshwara1995@gmil.com"
+      email: "shanthamoorthyshaneshwara1995@gmail.com"
     },
     {
       id: 't-2',
@@ -1653,17 +1693,17 @@ export default function App() {
       name_kn: "ಜಯರಾಜ್ ಸಾಲ್ಯಾನ್",
       photo_url: trusteeAdminPhoto,
       phone: "+91 87929 78777",
-      email: "shanthamoorthyshaneshwara1995@gmil.com"
+      email: "shanthamoorthyshaneshwara1995@gmail.com"
     }
   ];
 
   const rawTrustees = (trustees && trustees.length > 0) ? trustees : defaultTrustees;
 
   const displayTrustees = rawTrustees.map((member) => {
-    const isPresident = member.id === 't-1' || 
+    const isPresident = member.id === 't-1' ||
                         (member.role && member.role.toLowerCase().includes('president')) ||
                         (member.role_kn && member.role_kn.includes('ಅಧ್ಯಕ್ಷರು'));
-    
+
     if (isPresident) {
       return {
         ...member,
@@ -1673,7 +1713,7 @@ export default function App() {
         role_kn: member.role_kn || "ಅಧ್ಯಕ್ಷರು ಮತ್ತು ಸಂಸ್ಥಾಪಕ ಧರ್ಮದರ್ಶಿಗಳು",
         photo_url: member.photo_url || trusteePresidentPhoto,
         phone: member.phone || "+91 99022 07990",
-        email: member.email || "shanthamoorthyshaneshwara1995@gmil.com"
+        email: member.email || "shanthamoorthyshaneshwara1995@gmail.com"
       };
     }
 
@@ -1690,7 +1730,7 @@ export default function App() {
         name_kn: member.name_kn || "ಜಯರಾಜ್ ಸಾಲ್ಯಾನ್",
         photo_url: member.photo_url || trusteeAdminPhoto,
         phone: member.phone || "+91 87929 78777",
-        email: member.email || "admin@haadikereshanitemple.org"
+        email: member.email || "shanthamoorthyshaneshwara1995@gmail.com"
       };
     }
 
@@ -1787,10 +1827,10 @@ export default function App() {
 
       osc1.type = 'sine';
       osc1.frequency.setValueAtTime(293.66, now); // D4 (Calming bell note)
-      
+
       osc2.type = 'sine';
       osc2.frequency.setValueAtTime(369.99, now); // F#4 (Major third harmonic)
-      
+
       osc3.type = 'triangle';
       osc3.frequency.setValueAtTime(587.33, now); // D5 (Bright bell ring)
 
@@ -1896,7 +1936,7 @@ export default function App() {
     } else {
       setPlayingChantId(chantId);
       // Select drone frequencies based on Sanskrit style mantras
-      const baseFreq = chantId === 'shani-gayatri' ? 110 : chantId === 'shani-peeda-hara' ? 98 : 116.5; 
+      const baseFreq = chantId === 'shani-gayatri' ? 110 : chantId === 'shani-peeda-hara' ? 98 : 116.5;
       startChantDrone(baseFreq);
     }
   };
@@ -1981,19 +2021,19 @@ export default function App() {
     const errors: { name?: string; email?: string; phone?: string; message?: string } = {};
 
     if (!contactName.trim()) {
-      errors.name = lang === 'kn' ? 'ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರನ್ನು ನಮೂದಿಸಿ' : 'Please enter your name';
+      errors.name = tx('ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರನ್ನು ನಮೂದಿಸಿ', 'Please enter your name');
     }
 
     if (!contactMessage.trim()) {
-      errors.message = lang === 'kn' ? 'ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ' : 'Please enter your message';
+      errors.message = tx('ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ', 'Please enter your message');
     }
 
     if (contactEmail.trim() && !validateContactEmail(contactEmail)) {
-      errors.email = lang === 'kn' ? 'ಮಾನ್ಯ ಇಮೇಲ್ ನಮೂದಿಸಿ' : 'Enter a valid email';
+      errors.email = tx('ಮಾನ್ಯ ಇಮೇಲ್ ನಮೂದಿಸಿ', 'Enter a valid email');
     }
 
     if (contactPhone.trim() && !validateContactPhone(contactPhone)) {
-      errors.phone = lang === 'kn' ? 'ಮಾನ್ಯ ಭಾರತೀಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ (10 ಅಂಕಿಗಳು)' : 'Enter a valid Indian phone number (10 digits)';
+      errors.phone = tx('ಮಾನ್ಯ ಭಾರತೀಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ (10 ಅಂಕಿಗಳು)', 'Enter a valid Indian phone number (10 digits)');
     }
 
     setContactTouched({ name: true, email: true, phone: true, message: true });
@@ -2104,143 +2144,73 @@ export default function App() {
 
   const isHeaderSolid = isScrolled || currentPage !== 'home';
 
-  // Dynamic SEO Metadata for Each Page in Kannada and English
-  const getSeoMetadata = () => {
-    if (lang === 'kn') {
-      switch (currentPage) {
-        case 'about':
-          return {
-            title: "ಕ್ಷೇತ್ರದ ಹಿನ್ನೆಲೆ ಮತ್ತು ಇತಿಹಾಸ - ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ | ಹಾಡಿಕೆರೆ",
-            description: "ಉಡುಪಿ ಜಿಲ್ಲೆಯ ಬ್ರಹ್ಮಾವರದ ಹಾಡಿಕೆರೆಯಲ್ಲಿ ನೆಲೆಸಿರುವ ಶಾಂತಮೂರ್ತಿ ಶನೀಶ್ವರ ಸ್ವಾಮಿಯ ಇತಿಹಾಸ ಮತ್ತು ಹಿನ್ನೆಲೆ. ಜಾತಕ ದೋಷ ನಿವಾರಣೆಗಾಗಿ ಎಳ್ಳೆಣ್ಣೆ ದೀಪಗಳ ಆರಾಧನೆ.",
-            keywords: "ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಇತಿಹಾಸ, ಹಾಡಿಕೆರೆ, ಬ್ರಹ್ಮಾವರ, ಉಡುಪಿ, ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಕಲ್ಯಾಣ ಮಂಟಪ, ಧರ್ಮಸ್ಥಳ",
-          };
-        case 'gallery':
-          return {
-            title: "ಪವಿತ್ರ ಚಿತ್ರಸಂಪುಟ ಮತ್ತು ವೀಡಿಯೊಗಳು - ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ | ಹಾಡಿಕೆರೆ",
-            description: "ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನದ ಸುಂದರ ಫೋಟೋಗಳು ಮತ್ತು ವೀಡಿಯೊಗಳ ಗ್ಯಾಲರಿ. ಮಹಾ ಪೂಜೆ, ದೀಪಾರಾಧನೆ ಮತ್ತು ಹಸಿರು ಪರಿಸರ.",
-            keywords: "ಚಿತ್ರಸಂಪುಟ, ಫೋಟೋಗಳು, ವೀಡಿಯೊಗಳು, ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಹಾಡಿಕೆರೆ ಗ್ಯಾಲರಿ, ಪೂಜೆ",
-          };
-        case 'seva':
-          return {
-            title: "ಸೇವೆಗಳು ಮತ್ತು ವಿಶೇಷ ಪೂಜೆಗಳ ವಿವರ - ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ | ಹಾಡಿಕೆರೆ",
-            description: "ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆಯಲ್ಲಿ ನಡೆಯುವ ವಿಶೇಷ ಸೇವೆಗಳು, ತೈಲಾಭಿಷೇಕ ಮತ್ತು ಪೂಜೆಗಳ ವಿವರಗಳು.",
-            keywords: "ಸೇವೆಗಳು, ಪೂಜೆಗಳು, ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ತೈಲಾಭಿಷೇಕ, ಸಂಕಲ್ಪ, ಸೇವಾ ಪಟ್ಟಿ",
-          };
-        case 'contact':
-          return {
-            title: "ಸಂಪರ್ಕ ಮಾಹಿತಿ, ವಿಳಾಸ ಮತ್ತು ಮಾರ್ಗಸೂಚಿ - ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ | ಹಾಡಿಕೆರೆ",
-            description: "ಹಾಡಿಕೆರೆ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನದ ವಿಳಾಸ, ಫೋನ್ ಸಂಖ್ಯೆಗಳು, ಸಂಪರ್ಕ ಫಾರ್ಮ್ ಮತ್ತು ಗೂಗಲ್ ಮ್ಯಾಪ್ ಮೂಲಕ ದೇವಸ್ಥಾನ ತಲುಪುವ ಮಾರ್ಗಸೂಚಿಗಳು.",
-            keywords: "ಸಂಪರ್ಕ, ವಿಳಾಸ, ಫೋನ್ ಸಂಖ್ಯೆ, ನಕ್ಷೆ, ಹಾಡಿಕೆರೆ ಮಾರ್ಗ, ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್, ಬ್ರಹ್ಮಾವರ ವಿಳಾಸ",
-          };
-        case 'privacy':
-          return {
-            title: "ಗೌಪ್ಯತಾ ನೀತಿ - ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ | ಹಾಡಿಕೆರೆ",
-            description: "ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನದ ಅಧಿಕೃತ ಗೌಪ್ಯತಾ ನೀತಿ. ಭಕ್ತಾದಿಗಳ ಪವಿತ್ರ ಮಾಹಿತಿ ರಕ್ಷಣೆ ಮತ್ತು ಬದ್ಧತೆ.",
-            keywords: "ಗೌಪ್ಯತಾ ನೀತಿ, ಭಕ್ತರ ರಕ್ಷಣೆ, ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಹಾಡಿಕೆರೆ, ಗೌಪ್ಯತೆ",
-          };
-        case 'notfound':
-          return {
-            title: "ಪುಟ ಕಂಡುಬಂದಿಲ್ಲ (404) - ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ | ಹಾಡಿಕೆರೆ",
-            description: "ಕ್ಷಮಿಸಿ, ನೀವು ಹುಡುಕುತ್ತಿರುವ ಪುಟವು ಲಭ್ಯವಿಲ್ಲ ಅಥವಾ ಬದಲಾಗಿದೆ. ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನದ ಮುಖಪುಟಕ್ಕೆ ಹಿಂತಿರುಗಿ.",
-            keywords: "404, ಪುಟ ಕಂಡುಬಂದಿಲ್ಲ, ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಹಾಡಿಕೆರೆ",
-          };
-        case 'home':
-        default:
-          return {
-            title: "ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ | ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ",
-            description: "ಉಡುಪಿ ಜಿಲ್ಲೆಯ ಬ್ರಹ್ಮಾವರ ತಾಲೂಕಿನ ಪ್ರಶಾಂತ ಗ್ರಾಮವಾದ ಹಾಡಿಕೆರೆಯ ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನಕ್ಕೆ ತಮಗೆ ಆದರದ ಸ್ವಾಗತ. ದೇವಸ್ಥಾನದ ಇತಿಹಾಸ, ಸಮಯಗಳು ಮತ್ತು ಸೇವೆಗಳ ಮಾಹಿತಿ.",
-            keywords: "ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಹಾಡಿಕೆರೆ, ಬ್ರಹ್ಮಾವರ, ಉಡುಪಿ, ಮುಖಪುಟ, ಶನಿ ಪೂಜೆ, ದರ್ಶನ ಸಮಯ, ಅನ್ನದಾಸೋಹ",
-          };
-      }
-    } else {
-      switch (currentPage) {
-        case 'about':
-          return {
-            title: "Temple Sanctuary & Holy History - Shantamurthy Sri Shaneshwara Temple | Haadikere",
-            description: "Learn about the history and sacred significance of the Peaceful Lord Shaneshwara (Shantamurthy) in Udupi. Light Ellu Bathi (sesame oil lamps) and seek relief from Shani Dosha.",
-            keywords: "About Temple, History, Shantamurthy, Lord Shaneshwara, Haadikere, Udupi, Shani Dosha, Ellu Bathi",
-          };
-        case 'gallery':
-          return {
-            title: "Sacred Media Gallery & Videos - Shantamurthy Sri Shaneshwara Temple | Haadikere",
-            description: "View beautiful photographs and videos of Shantamurthy Sri Shaneshwara Temple, including the sacred shrine, festive pujas, and lush green surroundings.",
-            keywords: "Gallery, Photos, Videos, Holy Shrine, Pujas, Haadikere Gallery, Temple Pictures, South Indian Temple",
-          };
-        case 'seva':
-          return {
-            title: "Holy Seva Offerings & Poojas - Sri Shaneshwara Temple | Haadikere",
-            description: "View details of special sevas, poojas, and tailabhisheka at Haadikere. Direct counter seva offerings.",
-            keywords: "Seva, Poojas, Shani Puja, Tailabhisheka, Sankalpa, Sacred Blessings",
-          };
-        case 'contact':
-          return {
-            title: "Contact Information, Route Map & Directions - Sri Shaneshwara Temple | Haadikere",
-            description: "Find temple address, phone numbers, contact form, and Google Maps direction to Shantamurthy Sri Shaneshwara Temple, Haadikere, Brahmavara Taluk, Udupi.",
-            keywords: "Contact, Address, Phone, Google Maps, Location, Direction, Haadikere Brahmavara, Brahmavara Road Map",
-          };
-        case 'privacy':
-          return {
-            title: "Privacy Policy - Shantamurthy Sri Shaneshwara Temple | Haadikere",
-            description: "Official Privacy Policy of Shantamurthy Sri Shaneshwara Temple, Sri Kshetra Haadikere. Devotee data protection, confidentiality, and sacred trust.",
-            keywords: "Privacy Policy, Devotee Privacy, Shaneshwara Temple, Haadikere, Data Protection, Trust Policy",
-          };
-        case 'notfound':
-          return {
-            title: "Page Not Found (404) - Shantamurthy Sri Shaneshwara Temple | Haadikere",
-            description: "Sorry, the page you are looking for does not exist or has been moved. Return to the homepage of Sri Shaneshwara Temple.",
-            keywords: "404, Page Not Found, Shaneshwara Temple, Haadikere",
-          };
-        case 'home':
-        default:
-          return {
-            title: "Shantamurthy Sri Shaneshwara Temple | Sri Kshetra Haadikere, Udupi",
-            description: "Welcome to Shantamurthy Sri Shaneshwara Temple at Haadikere, Udupi. Explore sevas, timings, kalyana mantapa, and holy sanctuary history.",
-            keywords: "Sri Shaneshwara Temple, Haadikere, Udupi, Home, Darshan Timings, Shani Dev, Shantamurthy",
-          };
-      }
-    }
-  };
-
-  const seo = getSeoMetadata();
+  const seoDefaults = getDefaultSeo(currentPage, lang);
+  const pageKey = currentPage as SeoPageKey;
+  const seo = resolvePageSeo(pageKey, lang, seoDefaults, seoRows, content);
+  const siteUrl = siteUrlOf(content);
+  const canonicalUrl = siteUrl + (PAGE_PATHS[pageKey] === '/' ? '/' : PAGE_PATHS[pageKey]);
+  const seoImage = absoluteUrl(siteUrl, seo.image) || undefined;
+  const jsonLd = buildJsonLd({
+    page: pageKey, lang, content,
+    title: seo.title, description: seo.description, image: seoImage,
+    address: settings?.address || t.contactSection.address,
+    phones: t.contactSection.phones,
+    email: settings?.email || t.contactSection.email,
+    events: events
+  });
 
   return (
     <div id="app-container" className="min-h-screen bg-stone-50 text-stone-800 font-sans antialiased selection:bg-saffron-100 selection:text-saffron-700">
-      
+
       {/* Dynamic Document Metadata (SEO, Open Graph, Twitter Card) */}
-      <Helmet 
-        title={seo.title} 
-        description={seo.description} 
-        keywords={seo.keywords} 
+      <Helmet
+        title={seo.title}
+        description={seo.description}
+        keywords={seo.keywords}
+        canonical={canonicalUrl}
+        ogImage={seoImage}
+        noindex={seo.noindex}
+        lang={lang}
+        locale={lang === 'kn' ? 'kn_IN' : 'en_IN'}
+        siteName={lang === 'kn' ? content.seo.site_name_kn : content.seo.site_name_en}
+        twitterHandle={content.seo.twitter_handle}
+        themeColor={content.branding.theme_color}
+        faviconUrl={content.branding.favicon_url}
+        jsonLd={jsonLd}
+        googleVerification={content.integrations.google_site_verification}
+        bingVerification={content.integrations.bing_site_verification}
+        ga4Id={content.integrations.ga4_id}
+        gtmId={content.integrations.gtm_id}
       />
-      
+
       {/* 1. STICKY NAVBAR */}
-      <header 
+      <header
         id="main-navbar"
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isHeaderSolid 
-            ? 'bg-white/95 backdrop-blur-md shadow-md border-b border-stone-100 py-3' 
+          isHeaderSolid
+            ? 'bg-white/95 backdrop-blur-md shadow-md border-b border-stone-100 py-3'
             : 'bg-stone-900/40 backdrop-blur-xs py-4 text-white'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            
+
             {/* Logo and Temple Name */}
-            <div 
+            <div
               id="navbar-logo"
               className="flex items-center gap-3 cursor-pointer group"
               onClick={() => navigateToPage('home')}
             >
               <div className="relative">
                 <div className={`absolute -inset-1 rounded-full bg-gradient-to-tr from-saffron-600 to-yellow-500 opacity-70 blur-xs transition-transform duration-500 group-hover:scale-110 ${isBellRinging ? 'animate-ping' : ''}`} />
-                <img 
-                  src={settings?.logo_url || shaniDevLogo} 
-                  alt="Lord Shaneshwara Logo" 
+                <img
+                  src={settings?.logo_url || shaniDevLogo}
+                  alt="Lord Shaneshwara Logo"
                   referrerPolicy="no-referrer"
                   className="relative w-12 h-12 rounded-full object-cover border-2 border-amber-500/80 shadow-md group-hover:rotate-6 transition-transform duration-300"
                 />
               </div>
-              
+
               <div className="flex flex-col">
                 <span className={`text-base sm:text-lg font-bold tracking-tight leading-tight transition-colors duration-300 ${isHeaderSolid ? 'text-stone-900' : 'text-white text-shadow'}`}>
                   {t.templeName}
@@ -2258,14 +2228,14 @@ export default function App() {
                   key={section}
                   onClick={() => navigateToPage(section)}
                   className={`text-sm tracking-wide transition-all duration-300 hover:text-saffron-600 relative py-1 cursor-pointer ${
-                    currentPage === section 
+                    currentPage === section
                       ? isHeaderSolid ? 'text-saffron-600 font-semibold' : 'text-saffron-100 font-semibold'
                       : isHeaderSolid ? 'text-stone-600' : 'text-stone-200'
                   }`}
                 >
                   {t.nav[section]}
                   {currentPage === section && (
-                    <motion.span 
+                    <motion.span
                       layoutId="activeUnderline"
                       className="absolute bottom-0 left-0 right-0 h-0.5 bg-saffron-500 rounded-full"
                       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -2278,6 +2248,7 @@ export default function App() {
             {/* Language Toggle & Mobile Menu Trigger */}
             <div className="flex items-center gap-3">
               {/* Language Toggle Button */}
+              {content.features.show_language_toggle !== false && (
               <button
                 id="language-toggle-btn"
                 onClick={toggleLanguage}
@@ -2291,6 +2262,7 @@ export default function App() {
                 <Globe className="w-3.5 h-3.5 animate-spin-slow" />
                 <span>{lang === 'kn' ? 'ENGLISH' : 'ಕನ್ನಡ'}</span>
               </button>
+              )}
 
               {/* Mobile Hamburger Button */}
               <button
@@ -2357,7 +2329,7 @@ export default function App() {
               {/* Sticky Left Badge */}
               <div className="bg-stone-900/95 backdrop-blur-xs px-4 sm:px-6 py-2.5 text-xs sm:text-sm font-extrabold text-amber-400 uppercase tracking-widest border-r border-amber-500/30 flex items-center gap-2 z-20 shrink-0 select-none shadow-[4px_0_12px_rgba(0,0,0,0.2)]">
                 <span className="animate-pulse">📢</span>
-                <span>{lang === 'kn' ? 'ವಿಶೇಷ ಮಾಹಿತಿ' : 'Latest News'}</span>
+                <span>{tx('ವಿಶೇಷ ಮಾಹಿತಿ', 'Latest News')}</span>
               </div>
 
               {/* Scrolling Container */}
@@ -2373,7 +2345,7 @@ export default function App() {
                           <span>{item.text}</span>
                           {item.created_at && (
                             <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded font-mono text-amber-100 uppercase tracking-widest">
-                              {new Date(item.created_at).toLocaleDateString(lang === 'kn' ? 'kn-IN' : 'en-US', { day: 'numeric', month: 'short' })}
+                              {new Date(item.created_at).toLocaleDateString(tx('kn-IN', 'en-US'), { day: 'numeric', month: 'short' })}
                             </span>
                           )}
                         </div>
@@ -2388,7 +2360,7 @@ export default function App() {
                           <span>{item.text}</span>
                           {item.created_at && (
                             <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded font-mono text-amber-100 uppercase tracking-widest">
-                              {new Date(item.created_at).toLocaleDateString(lang === 'kn' ? 'kn-IN' : 'en-US', { day: 'numeric', month: 'short' })}
+                              {new Date(item.created_at).toLocaleDateString(tx('kn-IN', 'en-US'), { day: 'numeric', month: 'short' })}
                             </span>
                           )}
                         </div>
@@ -2402,8 +2374,8 @@ export default function App() {
               </div>
             </div>
           )}
-          <section 
-            id="home" 
+          <section
+            id="home"
             className={`relative min-h-screen pb-16 flex items-center justify-center bg-stone-950 overflow-hidden ${
               allNotifications && allNotifications.length > 0 ? 'pt-6' : 'pt-24'
             }`}
@@ -2411,10 +2383,10 @@ export default function App() {
             {/* Background image with parallax alignment and automatic transition */}
             <div className="absolute inset-0 z-0 overflow-hidden">
               <AnimatePresence mode="popLayout">
-                <motion.img 
-                  key={currentSlide}
-                  src={heroSlides[currentSlide].image} 
-                  alt="Shri Kshetra Haadikere Temple Banner" 
+                <motion.img
+                  key={safeSlide}
+                  src={heroSlides[safeSlide].image}
+                  alt="Shri Kshetra Haadikere Temple Banner"
                   referrerPolicy="no-referrer"
                   initial={{ opacity: 0, scale: 1.08 }}
                   animate={{ opacity: 0.88, scale: 1.03 }}
@@ -2451,7 +2423,7 @@ export default function App() {
             {/* Slide Indicator Dots and Captions */}
             <div className="absolute bottom-6 left-0 right-0 z-20 flex flex-col items-center gap-3 px-4">
               <p className="text-sm sm:text-base md:text-lg font-semibold text-stone-200 text-shadow-md text-center max-w-2xl select-none">
-                {lang === 'kn' ? heroSlides[currentSlide].captionKn : heroSlides[currentSlide].captionEn}
+                {lang === 'kn' ? heroSlides[safeSlide].captionKn : heroSlides[safeSlide].captionEn}
               </p>
               <div className="flex items-center gap-2 bg-stone-950/40 hover:bg-stone-950/60 transition-colors duration-300 px-3 py-1.5 rounded-full backdrop-blur-xs border border-white/5">
                 {heroSlides.map((_, idx) => (
@@ -2459,7 +2431,7 @@ export default function App() {
                     key={idx}
                     onClick={() => setCurrentSlide(idx)}
                     className={`w-2 h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                      currentSlide === idx ? 'bg-saffron-500 w-5' : 'bg-white/40 hover:bg-white/75'
+                      safeSlide === idx ? 'bg-saffron-500 w-5' : 'bg-white/40 hover:bg-white/75'
                     }`}
                     title={`Go to slide ${idx + 1}`}
                     aria-label={`Go to slide ${idx + 1}`}
@@ -2469,7 +2441,7 @@ export default function App() {
             </div>
 
             <div ref={heroTextRef} className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-              
+
               <div className="inline-flex items-center px-5 py-2 rounded-full bg-saffron-500/10 border border-saffron-500/30 text-saffron-300 text-sm sm:text-base font-bold mb-6 tracking-wide">
                 <span>{t.hero.welcome}</span>
               </div>
@@ -2517,21 +2489,21 @@ export default function App() {
             </div>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-                
+
                 {/* Visual Photo on Left (5 Cols on large screen) */}
                 <div className="lg:col-span-5 relative gsap-history-left">
                   <div className="absolute -inset-3 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-saffron-500/10 blur-xl opacity-80" />
                   <div className="relative rounded-2xl overflow-hidden border border-stone-200 bg-white shadow-xl group">
-                    <img 
-                      src={aboutPreviewPhoto} 
-                      alt="Scenic Haadikere Temple Shrine" 
+                    <img
+                      src={aboutPreviewPhoto}
+                      alt="Scenic Haadikere Temple Shrine"
                       referrerPolicy="no-referrer"
                       className="w-full h-72 sm:h-96 object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
-                    
+
                     {/* Visual Overlay Banner */}
                     <div className="absolute top-4 left-4 bg-saffron-600/90 text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-md flex items-center gap-1.5 backdrop-blur-xs select-none">
-                      <span>🕉️ {lang === 'kn' ? 'ಪವಿತ್ರ ಕ್ಷೇತ್ರ' : 'Holy Kshetra'}</span>
+                      <span>🕉️ {tx('ಪವಿತ್ರ ಕ್ಷೇತ್ರ', 'Holy Kshetra')}</span>
                     </div>
                   </div>
                 </div>
@@ -2540,7 +2512,7 @@ export default function App() {
                 <div className="lg:col-span-7 space-y-6 text-left gsap-history-right">
                   <div className="inline-block">
                     <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2 block">
-                      {lang === 'kn' ? 'ಕ್ಷೇತ್ರದ ಹಿನ್ನೆಲೆ' : 'Sacred Heritage'}
+                      {tx('ಕ್ಷೇತ್ರದ ಹಿನ್ನೆಲೆ', 'Sacred Heritage')}
                     </span>
                     <h2 className="text-2xl sm:text-4.5xl font-bold tracking-tight font-display text-stone-900 leading-tight">
                       {dbHistory && dbHistory.length > 0
@@ -2555,7 +2527,7 @@ export default function App() {
                       {dbHistory && dbHistory.length > 0 && dbHistory[0].subtitle_kn ? (
                         lang === 'kn' ? dbHistory[0].subtitle_kn : dbHistory[0].subtitle
                       ) : dbHistory && dbHistory.length > 0 && dbHistory[0].year ? (
-                        `${lang === 'kn' ? 'ಇತಿಹಾಸದ ಕಾಲಾವಧಿ:' : 'Era:'} ${dbHistory[0].year}`
+                        `${tx('ಇತಿಹಾಸದ ಕಾಲಾವಧಿ:', 'Era:')} ${dbHistory[0].year}`
                       ) : (
                         t.historyPreview.subtitle
                       )}
@@ -2567,7 +2539,7 @@ export default function App() {
                               ? (dbHistory[0].content_kn || dbHistory[0].description_kn || dbHistory[0].content || dbHistory[0].description)
                               : (dbHistory[0].content || dbHistory[0].description || dbHistory[0].content_kn || dbHistory[0].description_kn))
                           : t.historyPreview.desc;
-                        
+
                         const cleaned = cleanSupabaseHtml(rawDesc);
                         const limit = 260;
                         if (cleaned && cleaned.length > limit) {
@@ -2597,20 +2569,18 @@ export default function App() {
           {/* GALLERY PREVIEW SECTION */}
           <section ref={homeGallerySectionRef} id="gallery-preview" className="py-20 bg-stone-100 border-b border-stone-200 relative overflow-hidden">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-              
+
               {/* Header */}
               <div className="flex flex-col items-center mb-12 text-center gsap-home-gallery-item">
                 <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">
-                  {lang === 'kn' ? 'ಶ್ರೀ ಕ್ಷೇತ್ರದ ಛಾಯಾಚಿತ್ರಗಳು' : 'Divine Snapshots'}
+                  {tx('ಶ್ರೀ ಕ್ಷೇತ್ರದ ಛಾಯಾಚಿತ್ರಗಳು', 'Divine Snapshots')}
                 </span>
                 <h2 className="text-3xl sm:text-5xl font-bold tracking-tight font-display text-stone-900 mb-4">
-                  {lang === 'kn' ? 'ದಿವ್ಯ ಸನ್ನಿಧಿಯ ದರ್ಶನ' : 'Glimpse of the Holy Shrine'}
+                  {tx('ದಿವ್ಯ ಸನ್ನಿಧಿಯ ದರ್ಶನ', 'Glimpse of the Holy Shrine')}
                 </h2>
                 <div className="w-20 h-1 bg-gradient-to-r from-saffron-500 to-amber-500 rounded-full mb-4" />
                 <p className="text-stone-700 font-normal max-w-2xl text-base sm:text-lg md:text-xl">
-                  {lang === 'kn' 
-                    ? 'ಹಾಡಿಕೆರೆ ಶ್ರೀ ಶನೀಶ್ವರ ಸ್ವಾಮಿ ದೇವಸ್ಥಾನದ ಪವಿತ್ರ ಕ್ಷಣಗಳು ಮತ್ತು ಧಾರ್ಮಿಕ ವಿಧಿವಿಧಾನಗಳ ಸುಂದರ ಚಿತ್ರಗಳು.' 
-                    : 'Beautiful snapshots of sacred rituals, lamp offerings, and the serene temple atmosphere.'}
+                  {tx('ಹಾಡಿಕೆರೆ ಶ್ರೀ ಶನೀಶ್ವರ ಸ್ವಾಮಿ ದೇವಸ್ಥಾನದ ಪವಿತ್ರ ಕ್ಷಣಗಳು ಮತ್ತು ಧಾರ್ಮಿಕ ವಿಧಿವಿಧಾನಗಳ ಸುಂದರ ಚಿತ್ರಗಳು.', 'Beautiful snapshots of sacred rituals, lamp offerings, and the serene temple atmosphere.')}
                 </p>
               </div>
 
@@ -2625,11 +2595,11 @@ export default function App() {
                 </div>
               ) : galleryItems.length === 0 ? (
                 <div className="mb-12">
-                  <EmptyState 
-                    icon="gallery" 
-                    title={lang === 'kn' ? 'ಯಾವುದೇ ಚಿತ್ರಗಳು ಲಭ್ಯವಿಲ್ಲ' : 'No Gallery Items'} 
-                    description={lang === 'kn' ? 'ದೇವಸ್ಥಾನದ ಗ್ಯಾಲರಿಗೆ ಇನ್ನೂ ಚಿತ್ರಗಳನ್ನು ಸೇರಿಸಲಾಗಿಲ್ಲ.' : 'No photos have been uploaded yet.'} 
-                    lang={lang} 
+                  <EmptyState
+                    icon="gallery"
+                    title={tx('ಯಾವುದೇ ಚಿತ್ರಗಳು ಲಭ್ಯವಿಲ್ಲ', 'No Gallery Items')}
+                    description={tx('ದೇವಸ್ಥಾನದ ಗ್ಯಾಲರಿಗೆ ಇನ್ನೂ ಚಿತ್ರಗಳನ್ನು ಸೇರಿಸಲಾಗಿಲ್ಲ.', 'No photos have been uploaded yet.')}
+                    lang={lang}
                   />
                 </div>
               ) : (
@@ -2639,13 +2609,13 @@ export default function App() {
                       key={item.id}
                       className="gsap-home-gallery-item group relative rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-stone-200/40 bg-white h-[280px]"
                     >
-                      <img 
-                        src={item.src} 
+                      <img
+                        src={item.src}
                         alt={item.caption}
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                       />
-                      
+
                       {/* Dark overlay at bottom */}
                       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-stone-950/80 to-transparent flex flex-col justify-end p-5" />
 
@@ -2666,7 +2636,7 @@ export default function App() {
                     onClick={() => navigateToPage('gallery')}
                     className="inline-flex items-center justify-center gap-3 px-10 py-4 rounded-full bg-gradient-to-r from-saffron-600 to-amber-500 hover:from-saffron-500 hover:to-amber-400 text-white font-bold text-base sm:text-lg shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-0.5 group focus:ring-2 focus:ring-saffron-500"
                   >
-                    <span>{lang === 'kn' ? 'ಎಲ್ಲಾ ಚಿತ್ರಗಳನ್ನು ವೀಕ್ಷಿಸಿ ➔' : 'View Full Divine Gallery ➔'}</span>
+                    <span>{tx('ಎಲ್ಲಾ ಚಿತ್ರಗಳನ್ನು ವೀಕ್ಷಿಸಿ ➔', 'View Full Divine Gallery ➔')}</span>
                   </button>
                 </div>
               )}
@@ -2681,23 +2651,21 @@ export default function App() {
               <div className="absolute -right-8 -top-8 sm:-right-20 sm:-top-20 opacity-20 sm:opacity-12 md:opacity-10 pointer-events-none">
                 <MandalaWatermark className="w-44 sm:w-64 md:w-80 lg:w-96 h-44 sm:h-64 md:h-80 lg:h-96" colorClass="text-saffron-600" />
               </div>
-              
+
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-                
+
                 {/* Header */}
                 <div className="flex flex-col items-center mb-14 text-center gsap-events-item">
                   <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-saffron-500 animate-pulse" />
-                    {lang === 'kn' ? 'ಮಹೋತ್ಸವ ಮತ್ತು ವಿಶೇಷ ಕಾರ್ಯಕ್ರಮಗಳು' : 'Festivals & Special Events'}
+                    {tx('ಮಹೋತ್ಸವ ಮತ್ತು ವಿಶೇಷ ಕಾರ್ಯಕ್ರಮಗಳು', 'Festivals & Special Events')}
                   </span>
                   <h2 className="text-3xl sm:text-5xl font-bold tracking-tight font-display text-stone-900 mb-4">
-                    {lang === 'kn' ? 'ಕ್ಷೇತ್ರದ ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳು' : 'Upcoming Auspicious Events'}
+                    {tx('ಕ್ಷೇತ್ರದ ಮುಂಬರುವ ಕಾರ್ಯಕ್ರಮಗಳು', 'Upcoming Auspicious Events')}
                   </h2>
                   <div className="w-20 h-1 bg-gradient-to-r from-saffron-500 to-amber-500 rounded-full mb-4" />
                   <p className="text-stone-700 font-normal max-w-2xl text-base sm:text-lg">
-                    {lang === 'kn' 
-                      ? 'ಶ್ರೀ ಕ್ಷೇತ್ರದಲ್ಲಿ ನಡೆಯಲಿರುವ ವಿಶೇಷ ಉತ್ಸವಗಳು, ಧಾರ್ಮಿಕ ಪೂಜಾ ಕಾರ್ಯಕ್ರಮಗಳು ಮತ್ತು ಧರ್ಮಸಭೆಗಳ ವಿವರಗಳು.' 
-                      : 'Join us for divine celebrations, grand festivals, and special devotional events at the Holy Shrine.'}
+                    {tx('ಶ್ರೀ ಕ್ಷೇತ್ರದಲ್ಲಿ ನಡೆಯಲಿರುವ ವಿಶೇಷ ಉತ್ಸವಗಳು, ಧಾರ್ಮಿಕ ಪೂಜಾ ಕಾರ್ಯಕ್ರಮಗಳು ಮತ್ತು ಧರ್ಮಸಭೆಗಳ ವಿವರಗಳು.', 'Join us for divine celebrations, grand festivals, and special devotional events at the Holy Shrine.')}
                   </p>
                 </div>
 
@@ -2711,13 +2679,13 @@ export default function App() {
                   <AnimatePresence mode="wait">
                     {displayEvents.map((event, idx) => {
                       if (idx !== activeEventIndex) return null;
-                      
+
                       const titleText = lang === 'kn' ? (event.title_kn || event.title) : (event.title || event.title_kn);
                       const descText = lang === 'kn' ? (event.description_kn || event.description) : (event.description || event.description_kn);
                       const dateStr = event.event_date;
                       const timeStr = event.event_time;
                       const posterUrl = event.poster_url;
-                      
+
                       return (
                         <motion.div
                           key={event.id}
@@ -2731,13 +2699,13 @@ export default function App() {
                           <div className="absolute top-0 left-0">
                             <CornerRangoli size={80} colorClass="text-saffron-500/20" />
                           </div>
-                          
+
                           {/* Invitation Photo / Poster (Left Column) */}
                           <div className="lg:col-span-5 flex flex-col justify-center items-center relative group">
                             <div className="relative w-full max-w-[380px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border-2 border-stone-100 group-hover:shadow-2xl transition-all duration-500 group-hover:border-saffron-300">
                               {posterUrl ? (
-                                <img 
-                                  src={posterUrl} 
+                                <img
+                                  src={posterUrl}
                                   alt={titleText}
                                   referrerPolicy="no-referrer"
                                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-103 cursor-pointer"
@@ -2747,25 +2715,25 @@ export default function App() {
                                 <div className="w-full h-full bg-gradient-to-br from-amber-50 to-amber-100/50 flex flex-col items-center justify-center p-8 text-center">
                                   <Calendar className="w-16 h-16 text-saffron-500/40 mb-3" />
                                   <span className="text-stone-400 text-xs font-semibold uppercase tracking-wider">
-                                    {lang === 'kn' ? 'ಆಮಂತ್ರಣ ಪತ್ರಿಕೆ ಲಭ್ಯವಿಲ್ಲ' : 'Invitation Card Not Available'}
+                                    {tx('ಆಮಂತ್ರಣ ಪತ್ರಿಕೆ ಲಭ್ಯವಿಲ್ಲ', 'Invitation Card Not Available')}
                                   </span>
                                 </div>
                               )}
-                              
+
                               {/* Floating Zoom Badge */}
                               {posterUrl && (
-                                <button 
+                                <button
                                   onClick={() => setIsEventPosterZoomed(true)}
                                   className="absolute bottom-4 right-4 bg-stone-900/80 backdrop-blur-md text-white p-2.5 rounded-full shadow-lg hover:bg-saffron-600 hover:text-white hover:scale-110 transition-all duration-300 z-10 cursor-pointer"
-                                  title={lang === 'kn' ? 'ದೊಡ್ಡದಾಗಿ ವೀಕ್ಷಿಸಿ' : 'View Full Image'}
+                                  title={tx('ದೊಡ್ಡದಾಗಿ ವೀಕ್ಷಿಸಿ', 'View Full Image')}
                                 >
                                   <ZoomIn className="w-5 h-5" />
                                 </button>
                               )}
-                              
+
                               {/* Ribbon */}
                               <div className="absolute top-4 left-4 bg-gradient-to-r from-saffron-600 to-amber-500 text-white font-extrabold text-[10px] sm:text-xs px-3 py-1.5 rounded-full shadow-md tracking-wider uppercase">
-                                {lang === 'kn' ? 'ಆಮಂತ್ರಣ ಪತ್ರ' : 'Auspicious Invitation'}
+                                {tx('ಆಮಂತ್ರಣ ಪತ್ರ', 'Auspicious Invitation')}
                               </div>
                             </div>
                           </div>
@@ -2776,7 +2744,7 @@ export default function App() {
                             <div className="flex items-center gap-2">
                               <span className="h-px w-8 bg-saffron-400" />
                               <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-saffron-600 bg-saffron-50 px-3 py-1 rounded-full">
-                                {lang === 'kn' ? 'ಮಹೋತ್ಸವ ಮಾಹಿತಿ' : 'Event Details'}
+                                {tx('ಮಹೋತ್ಸವ ಮಾಹಿತಿ', 'Event Details')}
                               </span>
                               <span className="h-px w-8 bg-saffron-400" />
                             </div>
@@ -2795,7 +2763,7 @@ export default function App() {
                                 </div>
                                 <div>
                                   <span className="block text-[11px] sm:text-xs uppercase tracking-wider font-bold text-stone-500 mb-0.5">
-                                    {lang === 'kn' ? 'ದಿನಾಂಕ' : 'Date'}
+                                    {tx('ದಿನಾಂಕ', 'Date')}
                                   </span>
                                   <span className="text-sm sm:text-base font-extrabold text-stone-800">
                                     {formatDate(dateStr, lang)}
@@ -2810,10 +2778,10 @@ export default function App() {
                                 </div>
                                 <div>
                                   <span className="block text-[11px] sm:text-xs uppercase tracking-wider font-bold text-stone-500 mb-0.5">
-                                    {lang === 'kn' ? 'ಸಮಯ' : 'Timings'}
+                                    {tx('ಸಮಯ', 'Timings')}
                                   </span>
                                   <span className="text-sm sm:text-base font-extrabold text-stone-800">
-                                    {timeStr || (lang === 'kn' ? 'ದಿನವಿಡೀ' : 'Full Day')}
+                                    {timeStr || (tx('ದಿನವಿಡೀ', 'Full Day'))}
                                   </span>
                                 </div>
                               </div>
@@ -2830,18 +2798,17 @@ export default function App() {
                             <div className="flex flex-wrap gap-4 pt-2">
                               {/* Inquire on WhatsApp */}
                               <a
-                                href={`https://wa.me/${settings?.whatsapp_number ? settings.whatsapp_number.replace(/[^0-9]/g, '') : "919902207990"}?text=${encodeURIComponent(
-                                  lang === 'kn' 
+                                href={buildWhatsAppLink(temple_wa_number, lang === 'kn'
                                     ? `ನಮಸ್ತೆ, ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ ಹಾಡಿಕೆರೆಯ ${titleText} ಕಾರ್ಯಕ್ರಮದ ಬಗ್ಗೆ ಹೆಚ್ಚಿನ ಮಾಹಿತಿ ಬೇಕಾಗಿತ್ತು.`
                                     : `Namaste, I would like to inquire about the upcoming event: "${titleText}" at Sri Shaneshwara Temple Haadikere.`
-                                )}`}
+                                )}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm sm:text-base shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
                               >
-                                <span>💬 {lang === 'kn' ? 'ವಾಟ್ಸಾಪ್‌ನಲ್ಲಿ ವಿಚಾರಿಸಿ' : 'Inquire on WhatsApp'}</span>
+                                <span>💬 {tx('ವಾಟ್ಸಾಪ್‌ನಲ್ಲಿ ವಿಚಾರಿಸಿ', 'Inquire on WhatsApp')}</span>
                               </a>
-                              
+
                               {/* Share Invitation / Directions */}
                               <a
                                 href={templeDirectionsUrl}
@@ -2850,7 +2817,7 @@ export default function App() {
                                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-stone-900 hover:bg-stone-850 text-white font-bold text-sm sm:text-base border border-stone-850 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
                               >
                                 <MapPin className="w-4 h-4 text-saffron-500" />
-                                <span>{lang === 'kn' ? 'ಮಾರ್ಗಸೂಚಿ ಪಡೆಯಿರಿ' : 'Get Directions'}</span>
+                                <span>{tx('ಮಾರ್ಗಸೂಚಿ ಪಡೆಯಿರಿ', 'Get Directions')}</span>
                               </a>
                             </div>
                           </div>
@@ -2869,7 +2836,7 @@ export default function App() {
                       >
                         <ChevronLeft className="w-6 h-6" />
                       </button>
-                      
+
                       {/* Dots */}
                       <div className="flex gap-2">
                         {displayEvents.map((_, i) => (
@@ -2877,8 +2844,8 @@ export default function App() {
                             key={i}
                             onClick={() => setActiveEventIndex(i)}
                             className={`w-3 h-3 rounded-full transition-all duration-300 cursor-pointer ${
-                              i === activeEventIndex 
-                                ? 'bg-saffron-600 w-6' 
+                              i === activeEventIndex
+                                ? 'bg-saffron-600 w-6'
                                 : 'bg-stone-300 hover:bg-stone-400'
                             }`}
                             aria-label={`Go to event ${i + 1}`}
@@ -2899,7 +2866,7 @@ export default function App() {
               )}
 
               </div>
-              
+
               {/* Clean Poster Full-Screen Zoom Modal */}
               <AnimatePresence>
                 {isEventPosterZoomed && displayEvents[activeEventIndex]?.poster_url && (
@@ -2911,14 +2878,14 @@ export default function App() {
                   >
                     {/* Close button click-overlay */}
                     <div className="absolute inset-0 cursor-zoom-out" onClick={() => setIsEventPosterZoomed(false)} />
-                    
+
                     <button
                       onClick={() => setIsEventPosterZoomed(false)}
                       className="absolute top-6 right-6 text-white bg-stone-900 hover:bg-stone-850 border border-stone-800 p-3 rounded-full transition-all hover:scale-105 shadow-xl z-50 cursor-pointer"
                     >
                       <X className="w-6 h-6" />
                     </button>
-                    
+
                     <motion.div
                       initial={{ scale: 0.9, y: 20 }}
                       animate={{ scale: 1, y: 0 }}
@@ -2952,11 +2919,11 @@ export default function App() {
           <div className="container mx-auto px-4 relative z-10">
             {/* Breadcrumb Navigation */}
             <Breadcrumb currentPage={currentPage} navigateToPage={navigateToPage} lang={lang} t={t} />
-            
+
             {/* Header */}
             <div className="flex flex-col items-center mb-14 text-center gsap-about-item">
               <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">
-                {lang === 'kn' ? 'ಶ್ರೀ ಕ್ಷೇತ್ರ ಪರಿಚಯ' : 'Haadikere Shri Kshetra'}
+                {tx('ಶ್ರೀ ಕ್ಷೇತ್ರ ಪರಿಚಯ', 'Haadikere Shri Kshetra')}
               </span>
               <h2 className="text-2xl sm:text-4xl font-bold tracking-tight font-display text-stone-900 mb-3">
                 {lang === 'kn'
@@ -2972,16 +2939,16 @@ export default function App() {
               <div className="md:float-left md:mr-8 md:mb-6 w-full md:w-[45%] lg:w-[40%] relative mb-6 md:mb-4 gsap-about-item">
                 <div className="absolute -inset-1 bg-gradient-to-r from-saffron-500 to-amber-500 rounded-2xl blur-xs opacity-30"></div>
                 <div className="relative rounded-2xl overflow-hidden shadow-xl border border-stone-100 bg-white p-2">
-                  <img 
-                    src={settings?.about_image_url || aboutHeroPhoto} 
-                    alt={lang === 'kn' ? 'ಶ್ರೀ ಕ್ಷೇತ್ರ ದೇಗುಲ' : 'Shri Kshetra Temple'} 
+                  <img
+                    src={settings?.about_image_url || aboutHeroPhoto}
+                    alt={tx('ಶ್ರೀ ಕ್ಷೇತ್ರ ದೇಗುಲ', 'Shri Kshetra Temple')}
                     className="w-full h-[320px] sm:h-[380px] object-cover rounded-xl transition-transform duration-500 hover:scale-[1.02]"
                     referrerPolicy="no-referrer"
                   />
                   <div className="absolute bottom-4 left-4 right-4 bg-stone-900/80 backdrop-blur-xs py-2 px-3.5 rounded-lg border border-white/10 text-center">
                     <p className="text-white text-sm sm:text-base md:text-lg font-light">
-                      {lang === 'kn' 
-                        ? (settings?.about_image_caption_kn || 'ಹಸಿರಿನ ನಡುವೆ ಕಂಗೊಳಿಸುತ್ತಿರುವ ಸುಂದರ ದೇಗುಲ') 
+                      {lang === 'kn'
+                        ? (settings?.about_image_caption_kn || 'ಹಸಿರಿನ ನಡುವೆ ಕಂಗೊಳಿಸುತ್ತಿರುವ ಸುಂದರ ದೇಗುಲ')
                         : (settings?.about_image_caption_en || settings?.about_image_caption || 'Sacred sanctuary nestled amidst lush greenery')}
                     </p>
                   </div>
@@ -3006,7 +2973,7 @@ export default function App() {
                     const itemTitle = lang === 'kn' ? (item.title_kn || item.title) : (item.title || item.title_kn);
                     const itemContent = lang === 'kn' ? (item.content_kn || item.description_kn || item.content || item.description) : (item.content || item.description || item.content_kn || item.description_kn);
                     const itemYear = item.year || item.era || item.time_period;
-                    
+
                     return (
                       <div key={item.id || idx} className="mb-6 block">
                         {(itemTitle || itemYear) && (
@@ -3047,10 +3014,10 @@ export default function App() {
             <div className="mt-16 border-t border-stone-100 pt-20">
               <div className="flex flex-col items-center mb-12 text-center gsap-about-card">
                 <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">
-                  {lang === 'kn' ? 'ಸದ್ಭಕ್ತರ ಗಮನಕ್ಕೆ' : 'Pilgrim Notice & Timings'}
+                  {tx('ಸದ್ಭಕ್ತರ ಗಮನಕ್ಕೆ', 'Pilgrim Notice & Timings')}
                 </span>
                 <h3 className="text-xl sm:text-3xl font-bold text-stone-900 font-display">
-                  {lang === 'kn' ? 'ದರ್ಶನ ಮತ್ತು ಇತರ ಪವಿತ್ರ ವಿವರಗಳು' : 'Darshan Hours & Important Details'}
+                  {tx('ದರ್ಶನ ಮತ್ತು ಇತರ ಪವಿತ್ರ ವಿವರಗಳು', 'Darshan Hours & Important Details')}
                 </h3>
                 <div className="w-16 h-[2px] bg-saffron-500 mt-3" />
               </div>
@@ -3059,19 +3026,19 @@ export default function App() {
                 <div className="bg-stone-50/80 rounded-2xl p-6 border border-stone-200/60 shadow-xs gsap-about-card">
                   <div className="text-2xl mb-4">⏰</div>
                   <h4 className="text-lg font-bold text-stone-900 mb-2 font-display">
-                    {lang === 'kn' ? 'ದೇವಸ್ಥಾನದ ದರ್ಶನ ಸಮಯ' : 'Darshan Timings'}
+                    {tx('ದೇವಸ್ಥಾನದ ದರ್ಶನ ಸಮಯ', 'Darshan Timings')}
                   </h4>
                   <ul className="text-stone-700 text-sm sm:text-base md:text-lg font-normal space-y-3">
                     <li className="flex justify-between border-b border-stone-100 pb-2">
-                      <span>{lang === 'kn' ? 'ಸೋಮವಾರ ಮತ್ತು ಶನಿವಾರ' : 'Monday & Saturday'}</span>
+                      <span>{tx('ಸೋಮವಾರ ಮತ್ತು ಶನಿವಾರ', 'Monday & Saturday')}</span>
                       <span className="font-semibold text-stone-900">6 AM - 8 PM</span>
                     </li>
                     <li className="flex justify-between border-b border-stone-100 pb-2">
-                      <span>{lang === 'kn' ? 'ಇತರ ದಿನಗಳು (ಬೆಳಿಗ್ಗೆ)' : 'Other Days (Morning)'}</span>
+                      <span>{tx('ಇತರ ದಿನಗಳು (ಬೆಳಿಗ್ಗೆ)', 'Other Days (Morning)')}</span>
                       <span className="font-semibold text-stone-900">7 AM - 1 PM</span>
                     </li>
                     <li className="flex justify-between text-saffron-700 font-semibold pt-1">
-                      <span>{lang === 'kn' ? 'ಇತರ ದಿನಗಳು (ಸಂಜೆ)' : 'Other Days (Evening)'}</span>
+                      <span>{tx('ಇತರ ದಿನಗಳು (ಸಂಜೆ)', 'Other Days (Evening)')}</span>
                       <span className="bg-saffron-50 px-3 py-1 rounded-md text-sm sm:text-base">4:30 PM - 7:30 PM</span>
                     </li>
                   </ul>
@@ -3081,20 +3048,20 @@ export default function App() {
                 <div className="bg-stone-50/80 rounded-2xl p-6 border border-stone-200/60 shadow-xs gsap-about-card">
                   <div className="text-2xl mb-4">📜</div>
                   <h4 className="text-lg font-bold text-stone-900 mb-2 font-display">
-                    {lang === 'kn' ? 'ಸಾಂಪ್ರದಾಯಿಕ ನಿಯಮಗಳು' : 'Devotee Guidelines'}
+                    {tx('ಸಾಂಪ್ರದಾಯಿಕ ನಿಯಮಗಳು', 'Devotee Guidelines')}
                   </h4>
                   <ul className="text-stone-700 text-sm sm:text-base md:text-lg font-normal space-y-3">
                     <li className="flex items-start gap-1.5">
                       <span className="text-saffron-600">🔸</span>
-                      <span>{lang === 'kn' ? 'ದೇವಾಲಯಕ್ಕೆ ಸಾಂಪ್ರದಾಯಿಕ ಉಡುಪಿನಲ್ಲಿ ಬರುವುದು ಕಡ್ಡಾಯ.' : 'Decent traditional Indian clothing is required.'}</span>
+                      <span>{tx('ದೇವಾಲಯಕ್ಕೆ ಸಾಂಪ್ರದಾಯಿಕ ಉಡುಪಿನಲ್ಲಿ ಬರುವುದು ಕಡ್ಡಾಯ.', 'Decent traditional Indian clothing is required.')}</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-saffron-600">🔸</span>
-                      <span>{lang === 'kn' ? 'ಗರ್ಭಗುಡಿಯೊಳಗೆ ಮೊಬೈಲ್ ಫೋಟೋಗ್ರಫಿ ನಿಷೇಧಿಸಲಾಗಿದೆ.' : 'Mobile videography inside the inner sanctum is prohibited.'}</span>
+                      <span>{tx('ಗರ್ಭಗುಡಿಯೊಳಗೆ ಮೊಬೈಲ್ ಫೋಟೋಗ್ರಫಿ ನಿಷೇಧಿಸಲಾಗಿದೆ.', 'Mobile videography inside the inner sanctum is prohibited.')}</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-saffron-600">🔸</span>
-                      <span>{lang === 'kn' ? 'ಸ್ವಚ್ಛತೆ ಹಾಗೂ ಪವಿತ್ರತೆಯನ್ನು ಕಾಪಾಡಿ.' : 'Cooperate to maintain the purity and cleanliness.'}</span>
+                      <span>{tx('ಸ್ವಚ್ಛತೆ ಹಾಗೂ ಪವಿತ್ರತೆಯನ್ನು ಕಾಪಾಡಿ.', 'Cooperate to maintain the purity and cleanliness.')}</span>
                     </li>
                   </ul>
                 </div>
@@ -3103,15 +3070,15 @@ export default function App() {
                 <div className="bg-stone-50/80 rounded-2xl p-6 border border-stone-200/60 shadow-xs gsap-about-card">
                   <div className="text-2xl mb-4">📞</div>
                   <h4 className="text-lg font-bold text-stone-900 mb-2 font-display">
-                    {lang === 'kn' ? 'ಸಂಪರ್ಕ ಮತ್ತು ದೇಣಿಗೆ' : 'Trust Contact Info'}
+                    {tx('ಸಂಪರ್ಕ ಮತ್ತು ದೇಣಿಗೆ', 'Trust Contact Info')}
                   </h4>
                   <ul className="text-stone-700 text-sm sm:text-base md:text-lg font-normal space-y-3">
                     <li>
-                      <span className="font-semibold text-stone-800 block">{lang === 'kn' ? 'ದೇವಸ್ಥಾನ ಅಭಿವೃದ್ಧಿ ಟ್ರಸ್ಟ್ (R)' : 'Temple Development Trust (R)'}</span>
+                      <span className="font-semibold text-stone-800 block">{tx('ದೇವಸ್ಥಾನ ಅಭಿವೃದ್ಧಿ ಟ್ರಸ್ಟ್ (R)', 'Temple Development Trust (R)')}</span>
                       <span className="text-stone-500 text-xs sm:text-sm">Sri Kshetra Haadikere, Brahmavara, Udupi, Karnataka</span>
                     </li>
                     <li className="pt-2 border-t border-stone-200/40">
-                      <span className="block text-xs sm:text-sm text-stone-500">{lang === 'kn' ? 'ದೂರವಾಣಿ ಸಂಖ್ಯೆ:' : 'Phone Contact:'}</span>
+                      <span className="block text-xs sm:text-sm text-stone-500">{tx('ದೂರವಾಣಿ ಸಂಖ್ಯೆ:', 'Phone Contact:')}</span>
                       <span className="font-mono text-saffron-700 font-semibold text-base sm:text-lg md:text-xl block mt-1">+91 99022 07990 / +91 87929 78777</span>
                     </li>
                   </ul>
@@ -3123,16 +3090,14 @@ export default function App() {
             <div className="mt-28 border-t border-stone-100 pt-20">
               <div className="flex flex-col items-center mb-14 text-center gsap-about-mantapa">
                 <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">
-                  {lang === 'kn' ? 'ಮಂಗಳಕರ ಸೌಲಭ್ಯ' : 'Auspicious Facilities'}
+                  {tx('ಮಂಗಳಕರ ಸೌಲಭ್ಯ', 'Auspicious Facilities')}
                 </span>
                 <h3 className="text-xl sm:text-3xl font-bold text-stone-900 font-display">
-                  {lang === 'kn' ? 'ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನ' : 'Shantamurthi Sabhabhavana'}
+                  {tx('ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನ', 'Shantamurthi Sabhabhavana')}
                 </h3>
                 <div className="w-16 h-[2px] bg-saffron-500 mt-3 mb-4" />
                 <p className="text-stone-600 font-normal max-w-2xl text-base sm:text-lg md:text-xl">
-                  {lang === 'kn'
-                    ? 'ದೇವಸ್ಥಾನದ ಆವರಣದಲ್ಲೇ ಇರುವ ಸುಸಜ್ಜಿತ ಹಾಗೂ ವಿಶಾಲವಾದ ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನವು ಶುಭ ಸಮಾರಂಭಗಳಿಗೆ ಮುಕ್ತವಾಗಿದೆ.'
-                    : 'A beautifully equipped, spacious community wedding hall within the temple complex, available for all auspicious ceremonies.'}
+                  {tx('ದೇವಸ್ಥಾನದ ಆವರಣದಲ್ಲೇ ಇರುವ ಸುಸಜ್ಜಿತ ಹಾಗೂ ವಿಶಾಲವಾದ ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನವು ಶುಭ ಸಮಾರಂಭಗಳಿಗೆ ಮುಕ್ತವಾಗಿದೆ.', 'A beautifully equipped, spacious community wedding hall within the temple complex, available for all auspicious ceremonies.')}
                 </p>
               </div>
 
@@ -3143,13 +3108,11 @@ export default function App() {
                     <h4 className="text-xl sm:text-2xl md:text-3xl font-bold text-stone-900 font-display flex items-center gap-2">
                       <span className="text-saffron-600">🕉️</span>
                       <span>
-                        {lang === 'kn' ? 'ಸಕಲ ಸೌಲಭ್ಯಗಳುಳ್ಳ ಮಂಗಲ ಭವನ' : 'Traditional Marriage & Event Hall'}
+                        {tx('ಸಕಲ ಸೌಲಭ್ಯಗಳುಳ್ಳ ಮಂಗಲ ಭವನ', 'Traditional Marriage & Event Hall')}
                       </span>
                     </h4>
                     <p className="text-stone-700 font-normal text-base sm:text-lg md:text-xl leading-relaxed">
-                      {lang === 'kn'
-                        ? 'ದೇವಸ್ಥಾನದ ಶ್ರೀ ಕ್ಷೇತ್ರ ಸನ್ನಿಧಿಯಲ್ಲಿ ಮದುವೆ ಹಾಗೂ ಇತರ ಧಾರ್ಮಿಕ ಸಮಾರಂಭಗಳನ್ನು ನೆರವೇರಿಸಲು ಎಲ್ಲಾ ಆಧುನಿಕ ಸೌಲಭ್ಯಗಳೊಂದಿಗೆ ಸಾಂಪ್ರದಾಯಿಕ ಶೈಲಿಯಲ್ಲಿ ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನವನ್ನು ನಿರ್ಮಿಸಲಾಗಿದೆ. ಇಲ್ಲಿ ಶುಭಕಾರ್ಯಗಳನ್ನು ನಡೆಸುವುದರಿಂದ ಸ್ವಾಮಿಯ ವಿಶೇಷ ಆಶೀರ್ವಾದ ಸದಾ ಇರುತ್ತದೆ ಎಂಬುದು ಭಕ್ತರ ನಂಬಿಕೆ.'
-                        : 'Built in a traditional style with modern amenities, Shantamurthi Sabhabhavana offers an ideal spiritual ambiance for marriages and sacred ceremonies directly under the blessings of Lord Shaneshwara. Performing auspicious ceremonies here brings eternal peace and divine grace.'}
+                      {tx('ದೇವಸ್ಥಾನದ ಶ್ರೀ ಕ್ಷೇತ್ರ ಸನ್ನಿಧಿಯಲ್ಲಿ ಮದುವೆ ಹಾಗೂ ಇತರ ಧಾರ್ಮಿಕ ಸಮಾರಂಭಗಳನ್ನು ನೆರವೇರಿಸಲು ಎಲ್ಲಾ ಆಧುನಿಕ ಸೌಲಭ್ಯಗಳೊಂದಿಗೆ ಸಾಂಪ್ರದಾಯಿಕ ಶೈಲಿಯಲ್ಲಿ ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನವನ್ನು ನಿರ್ಮಿಸಲಾಗಿದೆ. ಇಲ್ಲಿ ಶುಭಕಾರ್ಯಗಳನ್ನು ನಡೆಸುವುದರಿಂದ ಸ್ವಾಮಿಯ ವಿಶೇಷ ಆಶೀರ್ವಾದ ಸದಾ ಇರುತ್ತದೆ ಎಂಬುದು ಭಕ್ತರ ನಂಬಿಕೆ.', 'Built in a traditional style with modern amenities, Shantamurthi Sabhabhavana offers an ideal spiritual ambiance for marriages and sacred ceremonies directly under the blessings of Lord Shaneshwara. Performing auspicious ceremonies here brings eternal peace and divine grace.')}
                     </p>
                   </div>
 
@@ -3159,12 +3122,10 @@ export default function App() {
                       <div className="text-2xl text-saffron-600 bg-saffron-50 p-2 rounded-lg h-fit">👥</div>
                       <div>
                         <h5 className="font-bold text-stone-900 text-base sm:text-lg mb-1">
-                          {lang === 'kn' ? 'ಒಟ್ಟು ಸಾಮರ್ಥ್ಯ' : 'Hall Capacity'}
+                          {tx('ಒಟ್ಟು ಸಾಮರ್ಥ್ಯ', 'Hall Capacity')}
                         </h5>
                         <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-                          {lang === 'kn'
-                            ? '೫೦೦+ ಆಸನಗಳ ವಿಶಾಲ ಮುಖ್ಯ ಸಭಾಂಗಣ ಮತ್ತು ೩೦೦+ ಭೋಜನ ಶಾಲೆ ಸಾಮರ್ಥ್ಯ.'
-                            : '500+ seat main convention hall paired with a 300+ capacity dining hall.'}
+                          {tx('೫೦೦+ ಆಸನಗಳ ವಿಶಾಲ ಮುಖ್ಯ ಸಭಾಂಗಣ ಮತ್ತು ೩೦೦+ ಭೋಜನ ಶಾಲೆ ಸಾಮರ್ಥ್ಯ.', '500+ seat main convention hall paired with a 300+ capacity dining hall.')}
                         </p>
                       </div>
                     </div>
@@ -3174,12 +3135,10 @@ export default function App() {
                       <div className="text-2xl text-saffron-600 bg-saffron-50 p-2 rounded-lg h-fit">✨</div>
                       <div>
                         <h5 className="font-bold text-stone-900 text-base sm:text-lg mb-1">
-                          {lang === 'kn' ? 'ಪ್ರಮುಖ ಸೌಲಭ್ಯಗಳು' : 'Amenities Offered'}
+                          {tx('ಪ್ರಮುಖ ಸೌಲಭ್ಯಗಳು', 'Amenities Offered')}
                         </h5>
                         <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-                          {lang === 'kn'
-                            ? 'ವಿಶಾಲ ವೇದಿಕೆ, ಸುಸಜ್ಜಿತ ವಧು-ವರರ ಕೊಠಡಿಗಳು, ನಿರಂತರ ನೀರು ಹಾಗೂ ವಿದ್ಯುತ್ ವ್ಯವಸ್ಥೆ.'
-                            : 'Grand elevated stage, spacious bridal suite, continuous water, and power backup.'}
+                          {tx('ವಿಶಾಲ ವೇದಿಕೆ, ಸುಸಜ್ಜಿತ ವಧು-ವರರ ಕೊಠಡಿಗಳು, ನಿರಂತರ ನೀರು ಹಾಗೂ ವಿದ್ಯುತ್ ವ್ಯವಸ್ಥೆ.', 'Grand elevated stage, spacious bridal suite, continuous water, and power backup.')}
                         </p>
                       </div>
                     </div>
@@ -3189,12 +3148,10 @@ export default function App() {
                       <div className="text-2xl text-saffron-600 bg-saffron-50 p-2 rounded-lg h-fit">🌸</div>
                       <div>
                         <h5 className="font-bold text-stone-900 text-base sm:text-lg mb-1">
-                          {lang === 'kn' ? 'ಸೂಕ್ತ ಸಮಾರಂಭಗಳು' : 'Suitable For'}
+                          {tx('ಸೂಕ್ತ ಸಮಾರಂಭಗಳು', 'Suitable For')}
                         </h5>
                         <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-                          {lang === 'kn'
-                            ? 'ಮದುವೆ, ನಿಶ್ಚಿತಾರ್ಥ, ಜನಿವಾರ ಧರಿಸುವಿಕೆ (ಉಪನಯನ) ಮತ್ತು ಇತರೆ ಕೌಟುಂಬಿಕ ಶುಭಕಾರ್ಯಗಳು.'
-                            : 'Weddings, engagements, Upanayana (thread ceremony), and sacred family rituals.'}
+                          {tx('ಮದುವೆ, ನಿಶ್ಚಿತಾರ್ಥ, ಜನಿವಾರ ಧರಿಸುವಿಕೆ (ಉಪನಯನ) ಮತ್ತು ಇತರೆ ಕೌಟುಂಬಿಕ ಶುಭಕಾರ್ಯಗಳು.', 'Weddings, engagements, Upanayana (thread ceremony), and sacred family rituals.')}
                         </p>
                       </div>
                     </div>
@@ -3204,12 +3161,10 @@ export default function App() {
                       <div className="text-2xl text-saffron-600 bg-saffron-50 p-2 rounded-lg h-fit">📞</div>
                       <div>
                         <h5 className="font-bold text-stone-900 text-base sm:text-lg mb-1">
-                          {lang === 'kn' ? 'ಬುಕ್ಕಿಂಗ್ ಮತ್ತು ಸಂಪರ್ಕ' : 'Booking & Contact'}
+                          {tx('ಬುಕ್ಕಿಂಗ್ ಮತ್ತು ಸಂಪರ್ಕ', 'Booking & Contact')}
                         </h5>
                         <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-                          {lang === 'kn'
-                            ? 'ಲಭ್ಯತೆ ಹಾಗೂ ಮುಂಗಡ ಕಾಯ್ದಿರಿಸುವಿಕೆಗಾಗಿ ದೇವಸ್ಥಾನದ ಆಡಳಿತ ಮಂಡಳಿಯನ್ನು ನೇರವಾಗಿ ಸಂಪರ್ಕಿಸಿ.'
-                            : 'For rental details, package options, and booking availability, please contact the trust office.'}
+                          {tx('ಲಭ್ಯತೆ ಹಾಗೂ ಮುಂಗಡ ಕಾಯ್ದಿರಿಸುವಿಕೆಗಾಗಿ ದೇವಸ್ಥಾನದ ಆಡಳಿತ ಮಂಡಳಿಯನ್ನು ನೇರವಾಗಿ ಸಂಪರ್ಕಿಸಿ.', 'For rental details, package options, and booking availability, please contact the trust office.')}
                         </p>
                       </div>
                     </div>
@@ -3220,15 +3175,15 @@ export default function App() {
                 <div className="lg:col-span-5 relative gsap-about-mantapa">
                   <div className="absolute -inset-1 bg-gradient-to-r from-amber-500 to-saffron-500 rounded-2xl blur-xs opacity-30"></div>
                   <div className="relative rounded-2xl overflow-hidden shadow-xl border border-stone-100 bg-white p-2">
-                    <LazyImage 
-                      src={marriageHallPhoto} 
-                      alt={lang === 'kn' ? 'ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನ' : 'Shantamurthi Sabhabhavana'} 
+                    <LazyImage
+                      src={marriageHallPhoto}
+                      alt={tx('ಶಾಂತಮೂರ್ತಿ ಸಭಾಭವನ', 'Shantamurthi Sabhabhavana')}
                       imgClassName="transition-transform duration-500 hover:scale-[1.02]"
                       className="w-full h-[320px] sm:h-[380px] rounded-xl"
                     />
                     <div className="absolute bottom-4 left-4 right-4 bg-stone-900/80 backdrop-blur-xs py-2 px-3.5 rounded-lg border border-white/10 text-center">
                       <p className="text-white text-sm sm:text-base md:text-lg font-semibold">
-                        {lang === 'kn' ? 'ಭವ್ಯ ಹಾಗೂ ಸುಸಜ್ಜಿತ ಮಂಗಲ ಭವನ' : 'The Grand and Holy Marriage Hall'}
+                        {tx('ಭವ್ಯ ಹಾಗೂ ಸುಸಜ್ಜಿತ ಮಂಗಲ ಭವನ', 'The Grand and Holy Marriage Hall')}
                       </p>
                     </div>
                   </div>
@@ -3252,22 +3207,20 @@ export default function App() {
             <MandalaWatermark className="w-44 sm:w-64 md:w-80 lg:w-96 h-44 sm:h-64 md:h-80 lg:h-96" colorClass="text-saffron-600" />
           </div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          
+
           {/* Breadcrumb Navigation */}
           <Breadcrumb currentPage={currentPage} navigateToPage={navigateToPage} lang={lang} t={t} />
-          
+
           <div className="flex flex-col items-center mb-10 text-center gsap-gallery-card">
             <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">
-              {lang === 'kn' ? 'ಶ್ರೀ ಕ್ಷೇತ್ರದ ಛಾಯಾಚಿತ್ರಗಳು ಮತ್ತು ದೃಶ್ಯಾವಳಿಗಳು' : 'Divine Gallery'}
+              {tx('ಶ್ರೀ ಕ್ಷೇತ್ರದ ಛಾಯಾಚಿತ್ರಗಳು ಮತ್ತು ದೃಶ್ಯಾವಳಿಗಳು', 'Divine Gallery')}
             </span>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight font-display text-stone-900 mb-4">
-              {lang === 'kn' ? 'ಶ್ರೀ ಕ್ಷೇತ್ರ ಗ್ಯಾಲರಿ' : 'Temple Media Gallery'}
+              {tx('ಶ್ರೀ ಕ್ಷೇತ್ರ ಗ್ಯಾಲರಿ', 'Temple Media Gallery')}
             </h2>
             <div className="w-20 h-1 bg-gradient-to-r from-saffron-500 to-amber-500 rounded-full mb-4" />
             <p className="text-stone-700 font-normal max-w-2xl text-base sm:text-lg md:text-xl">
-              {lang === 'kn'
-                ? 'ದೇವಸ್ಥಾನದ ಧಾರ್ಮಿಕ ವಿಧಿವಿಧಾನಗಳು, ವಿಶೇಷ ಅಲಂಕಾರಗಳು, ದಿವ್ಯ ದೃಶ್ಯಗಳು ಮತ್ತು ಪೂಜಾ ವೀಡಿಯೊಗಳು.'
-                : 'Sacred visual snapshots, divine decors, and spiritual video highlights of Shri Shaneshwara Temple.'}
+              {tx('ದೇವಸ್ಥಾನದ ಧಾರ್ಮಿಕ ವಿಧಿವಿಧಾನಗಳು, ವಿಶೇಷ ಅಲಂಕಾರಗಳು, ದಿವ್ಯ ದೃಶ್ಯಗಳು ಮತ್ತು ಪೂಜಾ ವೀಡಿಯೊಗಳು.', 'Sacred visual snapshots, divine decors, and spiritual video highlights of Shri Shaneshwara Temple.')}
             </p>
           </div>
 
@@ -3282,7 +3235,7 @@ export default function App() {
               }`}
             >
               <ImageIcon className="w-4.5 h-4.5" />
-              <span>{lang === 'kn' ? 'ಚಿತ್ರಗಳು (Photos)' : 'Photos'}</span>
+              <span>{tx('ಚಿತ್ರಗಳು (Photos)', 'Photos')}</span>
             </button>
             <button
               onClick={() => setActiveGalleryTab('videos')}
@@ -3293,7 +3246,7 @@ export default function App() {
               }`}
             >
               <Video className="w-4.5 h-4.5" />
-              <span>{lang === 'kn' ? 'ದೃಶ್ಯಾವಳಿಗಳು (Videos)' : 'Videos'}</span>
+              <span>{tx('ದೃಶ್ಯಾವಳಿಗಳು (Videos)', 'Videos')}</span>
             </button>
           </div>
 
@@ -3304,11 +3257,11 @@ export default function App() {
             <ErrorState message={galleryError} onRetry={fetchGalleryData} lang={lang} />
           ) : activeGalleryTab === 'images' ? (
             galleryImages.length === 0 ? (
-              <EmptyState 
-                icon="gallery" 
-                title={lang === 'kn' ? 'ಯಾವುದೇ ಚಿತ್ರಗಳು ಲಭ್ಯವಿಲ್ಲ' : 'No Photos Available'} 
-                description={lang === 'kn' ? "ದೇವಸ್ಥಾನದ 'gallery' ಕೋಷ್ಟಕಕ್ಕೆ ಇನ್ನೂ ಯಾವುದೇ ಚಿತ್ರಗಳನ್ನು ಸೇರಿಸಲಾಗಿಲ್ಲ." : "No image items have been added to the 'gallery' table in Supabase yet."} 
-                lang={lang} 
+              <EmptyState
+                icon="gallery"
+                title={tx('ಯಾವುದೇ ಚಿತ್ರಗಳು ಲಭ್ಯವಿಲ್ಲ', 'No Photos Available')}
+                description={tx("ದೇವಸ್ಥಾನದ 'gallery' ಕೋಷ್ಟಕಕ್ಕೆ ಇನ್ನೂ ಯಾವುದೇ ಚಿತ್ರಗಳನ್ನು ಸೇರಿಸಲಾಗಿಲ್ಲ.", "No image items have been added to the 'gallery' table in Supabase yet.")}
+                lang={lang}
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -3322,25 +3275,25 @@ export default function App() {
                     onClick={() => handleMediaItemClick({ id: img.id, type: 'image', src: img.src, caption: img.caption })}
                     className="gsap-gallery-card group relative rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300 border border-stone-200/40 bg-white aspect-[4/3] w-full"
                   >
-                    <LazyImage 
-                      src={img.src} 
+                    <LazyImage
+                      src={img.src}
                       alt={img.caption}
                       imgClassName="transition-transform duration-700 ease-out group-hover:scale-105 w-full h-full object-cover object-top rounded-2xl"
                       className="w-full h-full aspect-[4/3] rounded-2xl"
                     />
-                    
+
                     {/* Overlay with details */}
                     <div className="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-stone-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5" />
-                    
+
                     {/* Soft constant gradient at bottom for text visibility */}
                     <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-stone-950/70 to-transparent flex flex-col justify-end p-5" />
- 
+
                     <div className="absolute bottom-0 inset-x-0 p-5 z-10">
                       <p className="text-white font-semibold text-sm sm:text-base md:text-lg tracking-wide leading-tight drop-shadow-sm group-hover:text-yellow-300 transition-colors duration-300">
                         {img.caption}
                       </p>
                       <span className="text-xs sm:text-sm text-stone-300 font-mono tracking-widest uppercase mt-1.5 inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                        🔍 {lang === 'kn' ? 'ದೊಡ್ಡದಾಗಿ ನೋಡಿ' : 'Click to zoom'}
+                        🔍 {tx('ದೊಡ್ಡದಾಗಿ ನೋಡಿ', 'Click to zoom')}
                       </span>
                     </div>
                   </motion.div>
@@ -3349,11 +3302,11 @@ export default function App() {
             )
           ) : (
             galleryVideos.length === 0 ? (
-              <EmptyState 
-                icon="gallery" 
-                title={lang === 'kn' ? 'ಯಾವುದೇ ದೃಶ್ಯಾವಳಿಗಳು ಲಭ್ಯವಿಲ್ಲ' : 'No Videos Available'} 
-                description={lang === 'kn' ? "ದೇವಸ್ಥಾನದ 'gallery' ಕೋಷ್ಟಕಕ್ಕೆ ಇನ್ನೂ ಯಾವುದೇ ಪೂಜಾ ವೀಡಿಯೊಗಳನ್ನು ಸೇರಿಸಲಾಗಿಲ್ಲ." : "No video items have been added to the 'gallery' table in Supabase yet."} 
-                lang={lang} 
+              <EmptyState
+                icon="gallery"
+                title={tx('ಯಾವುದೇ ದೃಶ್ಯಾವಳಿಗಳು ಲಭ್ಯವಿಲ್ಲ', 'No Videos Available')}
+                description={tx("ದೇವಸ್ಥಾನದ 'gallery' ಕೋಷ್ಟಕಕ್ಕೆ ಇನ್ನೂ ಯಾವುದೇ ಪೂಜಾ ವೀಡಿಯೊಗಳನ್ನು ಸೇರಿಸಲಾಗಿಲ್ಲ.", "No video items have been added to the 'gallery' table in Supabase yet.")}
+                lang={lang}
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -3369,16 +3322,16 @@ export default function App() {
                   >
                     {/* Custom animated play button overlay */}
                     <div className="absolute inset-0 bg-black/45 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center z-10">
-                      <motion.div 
+                      <motion.div
                         whileHover={{ scale: 1.15 }}
                         className="w-14 h-14 rounded-full bg-saffron-600/90 text-white flex items-center justify-center shadow-lg border border-saffron-400/40"
                       >
                         <Play className="w-6 h-6 fill-current translate-x-0.5" />
                       </motion.div>
                     </div>
- 
-                    <LazyVideo 
-                      src={vid.src} 
+
+                    <LazyVideo
+                      src={vid.src}
                       muted
                       loop
                       playsInline
@@ -3386,11 +3339,11 @@ export default function App() {
                       videoClassName="w-full h-full object-cover object-top rounded-2xl"
                       poster={vid.poster}
                     />
- 
+
                     {/* Caption & Title */}
                     <div className="absolute bottom-0 inset-x-0 p-5 z-20 bg-gradient-to-t from-stone-950 via-stone-950/60 to-transparent">
                       <span className="text-xs font-bold bg-saffron-600 text-white px-2 py-0.5 rounded-md tracking-wider uppercase inline-block mb-2 font-mono">
-                        VIDEO • {lang === 'kn' ? 'ವಿಡಿಯೋ' : 'PLAYBACK'}
+                        VIDEO • {tx('ವಿಡಿಯೋ', 'PLAYBACK')}
                       </span>
                       <p className="text-white font-semibold text-sm sm:text-base md:text-lg tracking-wide leading-tight drop-shadow-sm group-hover:text-yellow-300 transition-colors duration-300">
                         {vid.caption}
@@ -3414,22 +3367,20 @@ export default function App() {
             <MandalaWatermark className="w-44 sm:w-64 md:w-80 lg:w-96 h-44 sm:h-64 md:h-80 lg:h-96" colorClass="text-saffron-600" />
           </div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          
+
           {/* Breadcrumb Navigation */}
           <Breadcrumb currentPage={currentPage} navigateToPage={navigateToPage} lang={lang} t={t} />
-          
+
           <div className="flex flex-col items-center mb-12 text-center gsap-seva-card">
             <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">
-              {lang === 'kn' ? 'ಶ್ರೀ ಸೇವಾ ಪಟ್ಟಿ' : 'Seva Offerings'}
+              {tx('ಶ್ರೀ ಸೇವಾ ಪಟ್ಟಿ', 'Seva Offerings')}
             </span>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight font-display text-stone-900 mb-4">
               {t.sevaSection.title}
             </h2>
             <div className="w-20 h-1 bg-gradient-to-r from-saffron-500 to-amber-500 rounded-full mb-4" />
             <p className="text-stone-700 font-normal max-w-2xl text-base sm:text-lg md:text-xl">
-              {lang === 'kn' 
-                ? 'ದೇವಾಲಯದಲ್ಲಿ ಸಾಂಪ್ರದಾಯಿಕವಾಗಿ ನಡೆಸಲಾಗುವ ವಿವಿಧ ಪೂಜೆಗಳು ಮತ್ತು ಕಾಣಿಕೆ ವಿವರಗಳು ಕೆಳಗೆ ನೀಡಲಾಗಿದೆ.'
-                : 'Below are the details of various sacred offerings and traditional poojas conducted at the temple.'}
+              {tx('ದೇವಾಲಯದಲ್ಲಿ ಸಾಂಪ್ರದಾಯಿಕವಾಗಿ ನಡೆಸಲಾಗುವ ವಿವಿಧ ಪೂಜೆಗಳು ಮತ್ತು ಕಾಣಿಕೆ ವಿವರಗಳು ಕೆಳಗೆ ನೀಡಲಾಗಿದೆ.', 'Below are the details of various sacred offerings and traditional poojas conducted at the temple.')}
             </p>
           </div>
 
@@ -3443,37 +3394,37 @@ export default function App() {
             </div>
           ) : sevas.length === 0 ? (
             <div className="max-w-4xl mx-auto">
-              <EmptyState 
-                icon="sevas" 
-                title={lang === 'kn' ? 'ಯಾವುದೇ ಸೇವೆಗಳು ಲಭ್ಯವಿಲ್ಲ' : 'No Sevas Available'} 
-                description={lang === 'kn' ? 'ದೇವಸ್ಥಾನದ ಸೇವಾ ಪಟ್ಟಿ ಸದ್ಯಕ್ಕೆ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ನಂತರ ಪರಿಶೀಲಿಸಿ.' : 'No seva offerings are currently listed in the database. Please check back later.'} 
-                lang={lang} 
+              <EmptyState
+                icon="sevas"
+                title={tx('ಯಾವುದೇ ಸೇವೆಗಳು ಲಭ್ಯವಿಲ್ಲ', 'No Sevas Available')}
+                description={tx('ದೇವಸ್ಥಾನದ ಸೇವಾ ಪಟ್ಟಿ ಸದ್ಯಕ್ಕೆ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ನಂತರ ಪರಿಶೀಲಿಸಿ.', 'No seva offerings are currently listed in the database. Please check back later.')}
+                lang={lang}
               />
             </div>
           ) : (
             <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-md border border-stone-200/80 overflow-hidden relative gsap-seva-card">
               {/* Top decorative gradient bar */}
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-saffron-500 via-amber-500 to-yellow-500" />
-              
+
               <div className="overflow-x-auto pt-1.5">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-stone-50 border-b border-stone-200">
                       <th className="py-4 px-6 text-sm sm:text-base md:text-lg font-extrabold text-stone-800 uppercase tracking-wider text-center w-20">
-                        {lang === 'kn' ? 'ಕ್ರ.ಸಂ.' : 'S.No'}
+                        {tx('ಕ್ರ.ಸಂ.', 'S.No')}
                       </th>
                       <th className="py-4 px-6 text-sm sm:text-base md:text-lg font-extrabold text-stone-800 uppercase tracking-wider">
-                        {lang === 'kn' ? 'ಸೇವೆಯ ಹೆಸರು' : 'Seva Name'}
+                        {tx('ಸೇವೆಯ ಹೆಸರು', 'Seva Name')}
                       </th>
                       <th className="py-4 px-6 text-sm sm:text-base md:text-lg font-extrabold text-stone-800 uppercase tracking-wider text-right w-36">
-                        {lang === 'kn' ? 'ಕಾಣಿಕೆ' : 'Price'}
+                        {tx('ಕಾಣಿಕೆ', 'Price')}
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
                     {sevas.map((seva, index) => (
-                      <tr 
-                        key={seva.id} 
+                      <tr
+                        key={seva.id}
                         className="hover:bg-saffron-50/20 transition-colors"
                       >
                         <td className="py-4 px-6 text-sm sm:text-base md:text-lg font-mono text-stone-600 text-center font-semibold">
@@ -3510,13 +3461,13 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-stone-900 text-lg sm:text-2xl tracking-tight font-display flex items-center gap-2">
-                    {lang === 'kn' ? 'ದೇವಸ್ಥಾನದ ಪ್ರಕಟಣಾ ಫಲಕ' : 'Temple Notice Board'}
+                    {tx('ದೇವಸ್ಥಾನದ ಪ್ರಕಟಣಾ ಫಲಕ', 'Temple Notice Board')}
                     <span className="text-saffron-500 text-xs sm:text-sm font-semibold border border-saffron-300 rounded-full px-2.5 py-0.5 bg-saffron-50 uppercase tracking-wider animate-pulse">
-                      {lang === 'kn' ? 'ಮಾಹಿತಿ' : 'Notice'}
+                      {tx('ಮಾಹಿತಿ', 'Notice')}
                     </span>
                   </h3>
                   <p className="text-stone-500 text-xs sm:text-sm">
-                    {lang === 'kn' ? 'ಭಕ್ತರಿಗೆ ಪ್ರಮುಖ ಧಾರ್ಮಿಕ ಮತ್ತು ಸಾಮಾಜಿಕ ಸೇವೆಗಳ ಮಾಹಿತಿ' : 'Important religious and community announcements for devotees'}
+                    {tx('ಭಕ್ತರಿಗೆ ಪ್ರಮುಖ ಧಾರ್ಮಿಕ ಮತ್ತು ಸಾಮಾಜಿಕ ಸೇವೆಗಳ ಮಾಹಿತಿ', 'Important religious and community announcements for devotees')}
                   </p>
                 </div>
               </div>
@@ -3531,7 +3482,7 @@ export default function App() {
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-saffron-600 bg-saffron-50 px-2 py-0.5 rounded-md">
-                        {lang === 'kn' ? 'ನಿತ್ಯ ಸೇವೆ' : 'Regular Service'}
+                        {tx('ನಿತ್ಯ ಸೇವೆ', 'Regular Service')}
                       </span>
                     </div>
                     {lang === 'kn' ? (
@@ -3554,7 +3505,7 @@ export default function App() {
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
-                        {lang === 'kn' ? 'ವಿಶೇಷ ಸೇವೆ' : 'Special Offering'}
+                        {tx('ವಿಶೇಷ ಸೇವೆ', 'Special Offering')}
                       </span>
                     </div>
                     {lang === 'kn' ? (
@@ -3577,7 +3528,7 @@ export default function App() {
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-stone-600 bg-stone-100 px-2 py-0.5 rounded-md">
-                        {lang === 'kn' ? 'ಸತ್ಸಂಗ / ಚರಿತ್ರೆ ಪಠಣ' : 'Spiritual Discourse'}
+                        {tx('ಸತ್ಸಂಗ / ಚರಿತ್ರೆ ಪಠಣ', 'Spiritual Discourse')}
                       </span>
                     </div>
                     {lang === 'kn' ? (
@@ -3602,17 +3553,13 @@ export default function App() {
                 <span className="text-3xl sm:text-4xl shrink-0">⚠️</span>
                 <div className="space-y-2.5">
                   <h4 className="font-extrabold text-stone-900 text-base sm:text-lg md:text-xl tracking-tight font-display">
-                    {lang === 'kn' ? 'ಪ್ರಮುಖ ಸೂಚನೆ / Important Note' : 'Important Notice'}
+                    {tx('ಪ್ರಮುಖ ಸೂಚನೆ / Important Note', 'Important Notice')}
                   </h4>
                   <p className="text-stone-800 text-sm sm:text-base md:text-lg leading-relaxed font-semibold">
-                    {lang === 'kn' 
-                      ? 'ಶ್ರೀ ಕ್ಷೇತ್ರದಲ್ಲಿ ಯಾವುದೇ ರೀತಿಯ ಆನ್‌ಲೈನ್ ಬುಕಿಂಗ್ ವ್ಯವಸ್ಥೆ ಇರುವುದಿಲ್ಲ. ಭಕ್ತಾದಿಗಳು ನೇರವಾಗಿ ದೇವಸ್ಥಾನದ ಕಾರ್ಯಾಲಯದ ಕೌಂಟರ್‌ನಲ್ಲಿ ನಿಗದಿತ ಕಾಣಿಕೆಯನ್ನು ಪಾವತಿಸಿ ರಶೀದಿಯನ್ನು ಪಡೆದುಕೊಂಡು ಸೇವೆಗಳನ್ನು ನಡೆಸಬೇಕಾಗಿ ವಿನಂತಿ.'
-                      : 'There is no online booking facility or digital payment setup for sevas. Devotees are requested to directly visit the temple office counter, pay the prescribed seva amount, and obtain physical receipts to perform their offerings.'}
+                    {tx('ಶ್ರೀ ಕ್ಷೇತ್ರದಲ್ಲಿ ಯಾವುದೇ ರೀತಿಯ ಆನ್‌ಲೈನ್ ಬುಕಿಂಗ್ ವ್ಯವಸ್ಥೆ ಇರುವುದಿಲ್ಲ. ಭಕ್ತಾದಿಗಳು ನೇರವಾಗಿ ದೇವಸ್ಥಾನದ ಕಾರ್ಯಾಲಯದ ಕೌಂಟರ್‌ನಲ್ಲಿ ನಿಗದಿತ ಕಾಣಿಕೆಯನ್ನು ಪಾವತಿಸಿ ರಶೀದಿಯನ್ನು ಪಡೆದುಕೊಂಡು ಸೇವೆಗಳನ್ನು ನಡೆಸಬೇಕಾಗಿ ವಿನಂತಿ.', 'There is no online booking facility or digital payment setup for sevas. Devotees are requested to directly visit the temple office counter, pay the prescribed seva amount, and obtain physical receipts to perform their offerings.')}
                   </p>
                   <p className="text-stone-600 text-xs sm:text-sm md:text-base leading-relaxed font-normal italic">
-                    {lang === 'kn'
-                      ? 'ದೇವಸ್ಥಾನದ ಹೆಸರಿನಲ್ಲಿ ಆನ್‌ಲೈನ್‌ನಲ್ಲಿ ಹಣ ಕೇಳುವ ವಂಚಕರ ಬಗ್ಗೆ ಜಾಗರೂಕರಾಗಿರಿ.'
-                      : 'Please be cautious of fraudulent online portals or individuals requesting digital transfers in the name of the temple.'}
+                    {tx('ದೇವಸ್ಥಾನದ ಹೆಸರಿನಲ್ಲಿ ಆನ್‌ಲೈನ್‌ನಲ್ಲಿ ಹಣ ಕೇಳುವ ವಂಚಕರ ಬಗ್ಗೆ ಜಾಗರೂಕರಾಗಿರಿ.', 'Please be cautious of fraudulent online portals or individuals requesting digital transfers in the name of the temple.')}
                   </p>
                   <div className="pt-3 border-t border-amber-200/80 flex items-start sm:items-center gap-2 text-xs sm:text-sm text-stone-700">
                     <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
@@ -3620,8 +3567,8 @@ export default function App() {
                       {lang === 'kn' ? (
                         <>
                           ಈ ವೆಬ್‌ಸೈಟ್‌ನಲ್ಲಿ ಯಾವುದೇ ಆನ್‌ಲೈನ್ ಬುಕಿಂಗ್, ಪಾವತಿ ಅಥವಾ ಗೋತ್ರ/ನಕ್ಷತ್ರ ವಿವರಗಳನ್ನು ಸಂಗ್ರಹಿಸಲಾಗುವುದಿಲ್ಲ. ಹೆಚ್ಚಿನ ಮಾಹಿತಿಗೆ ನಮ್ಮ{' '}
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => navigateToPage('privacy')}
                             className="text-saffron-700 hover:text-saffron-800 font-bold underline cursor-pointer inline"
                           >
@@ -3632,8 +3579,8 @@ export default function App() {
                       ) : (
                         <>
                           This website does not conduct online bookings, accept digital payments, or collect Gotra/Nakshatra details. For details, view our{' '}
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => navigateToPage('privacy')}
                             className="text-saffron-700 hover:text-saffron-800 font-bold underline cursor-pointer inline"
                           >
@@ -3673,10 +3620,10 @@ export default function App() {
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          
+
           {/* Breadcrumb Navigation */}
           <Breadcrumb currentPage={currentPage} navigateToPage={navigateToPage} lang={lang} t={t} />
-          
+
           <div className="flex flex-col items-center mb-14 text-center gsap-contact-item">
             <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">Location & Reach</span>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight font-display text-stone-900 mb-4">
@@ -3689,10 +3636,10 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-            
+
             {/* Contact Details & Address (5 of 12) */}
             <div className="lg:col-span-5 space-y-6">
-              
+
               {/* Address Card */}
               <div className="p-6 bg-stone-50 border border-stone-200/80 rounded-2xl flex gap-4 shadow-xs gsap-contact-item">
                 <div className="w-11 h-11 rounded-full bg-saffron-100 text-saffron-600 flex items-center justify-center shrink-0">
@@ -3721,9 +3668,9 @@ export default function App() {
                     {t.contactSection.phones.map((phone, idx) => {
                       const cleanPhone = phone.replace(/[^0-9+]/g, '');
                       return (
-                        <a 
-                          key={idx} 
-                          href={`tel:${cleanPhone}`} 
+                        <a
+                          key={idx}
+                          href={`tel:${cleanPhone}`}
                           className="block text-stone-800 hover:text-saffron-700 font-mono text-base sm:text-lg md:text-xl font-bold tracking-wide transition-colors cursor-pointer"
                         >
                           {phone}
@@ -3735,7 +3682,7 @@ export default function App() {
               </div>
 
               {/* Email Card */}
-              <a 
+              <a
                 href={`mailto:${settings?.email || t.contactSection.email}`}
                 className="p-6 bg-stone-50 border border-stone-200/80 rounded-2xl flex gap-4 hover:border-saffron-300 hover:bg-saffron-50/20 transition-all group cursor-pointer shadow-xs"
               >
@@ -3755,7 +3702,7 @@ export default function App() {
               {/* WhatsApp Card */}
               {settings?.whatsapp_number && (
                 <a
-                  href={`https://wa.me/${settings.whatsapp_number.replace(/[^0-9]/g, '')}`}
+                  href={templeWhatsAppUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-6 bg-stone-50 border border-stone-200/80 rounded-2xl flex gap-4 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all group cursor-pointer shadow-xs"
@@ -3767,7 +3714,7 @@ export default function App() {
                   </div>
                   <div>
                     <h4 className="font-extrabold text-stone-900 text-base sm:text-lg mb-2 uppercase tracking-wide group-hover:text-emerald-700 transition-colors">
-                      {lang === 'kn' ? 'ವಾಟ್ಸಾಪ್ ಸಂಪರ್ಕ' : 'WhatsApp Contact'}
+                      {tx('ವಾಟ್ಸಾಪ್ ಸಂಪರ್ಕ', 'WhatsApp Contact')}
                     </h4>
                     <p className="text-stone-700 text-sm sm:text-base md:text-lg font-bold group-hover:text-emerald-600 transition-colors">
                       {settings.whatsapp_number}
@@ -3780,7 +3727,7 @@ export default function App() {
               <div className="space-y-3 mt-6">
                 <h4 className="font-extrabold text-stone-900 text-base sm:text-lg uppercase tracking-wide flex items-center gap-2">
                   <span>🗺️</span>
-                  <span>{lang === 'kn' ? 'ನಕ್ಷೆ ಮತ್ತು ದಾರಿ ವಿವರ' : 'Interactive Map & Directions'}</span>
+                  <span>{tx('ನಕ್ಷೆ ಮತ್ತು ದಾರಿ ವಿವರ', 'Interactive Map & Directions')}</span>
                 </h4>
                 <div className="relative rounded-2xl overflow-hidden border border-stone-200/80 shadow-md h-72 bg-stone-100 group">
                   {/* Loading indicator for map iframe */}
@@ -3788,19 +3735,19 @@ export default function App() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-stone-100 text-stone-500 z-0">
                       <div className="w-8 h-8 border-3 border-saffron-500 border-t-transparent rounded-full animate-spin mb-2" />
                       <span className="text-xs font-semibold text-stone-600">
-                        {lang === 'kn' ? 'ನಕ್ಷೆ ಲೋಡ್ ಆಗುತ್ತಿದೆ...' : 'Loading map...'}
+                        {tx('ನಕ್ಷೆ ಲೋಡ್ ಆಗುತ್ತಿದೆ...', 'Loading map...')}
                       </span>
                     </div>
                   )}
 
                   {/* Interactive Map Iframe */}
-                  <iframe 
-                    src={getValidMapEmbedUrl(settings?.google_maps_embed_url)} 
-                    width="100%" 
-                    height="100%" 
-                    style={{ border: 0 }} 
-                    allowFullScreen={true} 
-                    loading="lazy" 
+                  <iframe
+                    src={getValidMapEmbedUrl(settings?.google_maps_embed_url)}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen={true}
+                    loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
                     title="Shantamurti Shanishwar Convention Hall Map"
                     onLoad={() => setIsMapLoading(false)}
@@ -3808,32 +3755,32 @@ export default function App() {
                   />
                   {/* Direct Clickable Map Overlay: Map container itself serves as effective trigger for directions */}
                   <a
-                    href={CANONICAL_SHANTAMURTI_DIRECTIONS_URL}
+                    href={templeDirectionsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={lang === 'kn' ? 'ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ದಾರಿ ತಿಳಿಯಲು ನಕ್ಷೆ ಮೇಲೆ ಕ್ಲಿಕ್ ಮಾಡಿ' : 'Click map to get directions on Google Maps'}
-                    aria-label={lang === 'kn' ? 'ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ದಾರಿ ಪಡೆಯಲು ಕ್ಲಿಕ್ ಮಾಡಿ' : 'Get directions to Shantamurti Shanishwar on Google Maps'}
+                    title={tx('ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ದಾರಿ ತಿಳಿಯಲು ನಕ್ಷೆ ಮೇಲೆ ಕ್ಲಿಕ್ ಮಾಡಿ', 'Click map to get directions on Google Maps')}
+                    aria-label={tx('ಗೂಗಲ್ ಮ್ಯಾಪ್ಸ್‌ನಲ್ಲಿ ದಾರಿ ಪಡೆಯಲು ಕ್ಲಿಕ್ ಮಾಡಿ', 'Get directions to Shantamurti Shanishwar on Google Maps')}
                     className="absolute inset-0 z-10 flex items-start justify-end p-3.5 bg-black/0 hover:bg-black/15 transition-colors duration-200 cursor-pointer"
                   >
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-stone-900 text-xs font-bold shadow-md border border-stone-200 group-hover:bg-saffron-50 group-hover:text-saffron-700 transition-colors">
                       <MapPin className="w-3.5 h-3.5 text-saffron-600" />
-                      <span>{lang === 'kn' ? 'ನಕ್ಷೆ ತೆರೆಯಿರಿ' : 'Open Map'} ➔</span>
+                      <span>{tx('ನಕ್ಷೆ ತೆರೆಯಿರಿ', 'Open Map')} ➔</span>
                     </span>
                   </a>
                 </div>
                 {/* Clear visual 'Get Directions' button below the map */}
                 <div className="flex flex-col gap-3 mt-2">
                   <a
-                    href={CANONICAL_SHANTAMURTI_DIRECTIONS_URL}
+                    href={templeDirectionsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full py-3.5 px-5 rounded-xl bg-saffron-600 hover:bg-saffron-700 text-white font-extrabold flex items-center justify-center gap-2 shadow-md hover:shadow-xl transition-all duration-300 text-sm sm:text-base cursor-pointer"
                   >
                     <MapPin className="w-5 h-5 text-white" />
-                    <span>{lang === 'kn' ? 'ದಾರಿ ಪಡೆಯಿರಿ (Get Directions) ➔' : 'Get Directions ➔'}</span>
+                    <span>{tx('ದಾರಿ ಪಡೆಯಿರಿ (Get Directions) ➔', 'Get Directions ➔')}</span>
                   </a>
                   <div className="flex items-center justify-between text-xs sm:text-sm text-stone-500 font-medium px-1">
-                    <span>📍 {lang === 'kn' ? 'ಹಾಡಿಕೆರೆ, ಬ್ರಹ್ಮಾವರ, ಕರ್ನಾಟಕ' : 'Haadikere, Brahmavara, Karnataka'}</span>
+                    <span>📍 {tx('ಹಾಡಿಕೆರೆ, ಬ್ರಹ್ಮಾವರ, ಕರ್ನಾಟಕ', 'Haadikere, Brahmavara, Karnataka')}</span>
                   </div>
                 </div>
               </div>
@@ -3843,7 +3790,7 @@ export default function App() {
 
             {/* Interactive Prayer & Inquiry Form (7 of 12) */}
             <div id="contact-form-container" className="lg:col-span-7 bg-stone-50 border border-stone-200/80 rounded-2xl p-6 sm:p-8 shadow-md">
-              
+
               <h3 className="font-extrabold text-stone-900 text-lg sm:text-xl md:text-2xl mb-6 pb-2 border-b border-stone-200 flex items-center gap-2">
                 <span>✍️</span>
                 <span>{t.contactSection.formTitle}</span>
@@ -3855,7 +3802,7 @@ export default function App() {
                     ✓
                   </div>
                   <h4 className="font-extrabold text-stone-900 text-xl sm:text-2xl">
-                    {lang === 'kn' ? 'ಪ್ರಾರ್ಥನೆ ಸ್ವೀಕರಿಸಲಾಗಿದೆ!' : 'Prayer Request Sent!'}
+                    {tx('ಪ್ರಾರ್ಥನೆ ಸ್ವೀಕರಿಸಲಾಗಿದೆ!', 'Prayer Request Sent!')}
                   </h4>
                   <p className="text-stone-700 text-sm sm:text-base md:text-lg font-normal max-w-md mx-auto leading-relaxed">
                     {t.contactSection.formSuccess}
@@ -3893,9 +3840,9 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm sm:text-base font-extrabold text-stone-700 uppercase mb-1.5">
-                        {lang === 'kn' ? 'ಹೆಸರು' : 'Your Name'} *
+                        {tx('ಹೆಸರು', 'Your Name')} *
                       </label>
-                      <input 
+                      <input
                         type="text"
                         required
                         value={contactName}
@@ -3903,7 +3850,7 @@ export default function App() {
                           setContactName(e.target.value);
                           if (contactTouched.name) {
                             if (!e.target.value.trim()) {
-                              setContactFormErrors(prev => ({ ...prev, name: lang === 'kn' ? 'ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರನ್ನು ನಮೂದಿಸಿ' : 'Please enter your name' }));
+                              setContactFormErrors(prev => ({ ...prev, name: tx('ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರನ್ನು ನಮೂದಿಸಿ', 'Please enter your name') }));
                             } else {
                               setContactFormErrors(prev => ({ ...prev, name: undefined }));
                             }
@@ -3912,7 +3859,7 @@ export default function App() {
                         onBlur={() => {
                           setContactTouched(prev => ({ ...prev, name: true }));
                           if (!contactName.trim()) {
-                            setContactFormErrors(prev => ({ ...prev, name: lang === 'kn' ? 'ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರನ್ನು ನಮೂದಿಸಿ' : 'Please enter your name' }));
+                            setContactFormErrors(prev => ({ ...prev, name: tx('ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರನ್ನು ನಮೂದಿಸಿ', 'Please enter your name') }));
                           } else {
                             setContactFormErrors(prev => ({ ...prev, name: undefined }));
                           }
@@ -3930,16 +3877,16 @@ export default function App() {
 
                     <div>
                       <label className="block text-sm sm:text-base font-extrabold text-stone-700 uppercase mb-1.5">
-                        {lang === 'kn' ? 'ಇಮೇಲ್ ವಿಳಾಸ' : 'Email Address'}
+                        {tx('ಇಮೇಲ್ ವಿಳಾಸ', 'Email Address')}
                       </label>
-                      <input 
+                      <input
                         type="email"
                         value={contactEmail}
                         onChange={(e) => {
                           setContactEmail(e.target.value);
                           if (contactTouched.email) {
                             if (e.target.value.trim() && !validateContactEmail(e.target.value)) {
-                              setContactFormErrors(prev => ({ ...prev, email: lang === 'kn' ? 'ಮಾನ್ಯ ಇಮೇಲ್ ನಮೂದಿಸಿ' : 'Enter a valid email' }));
+                              setContactFormErrors(prev => ({ ...prev, email: tx('ಮಾನ್ಯ ಇಮೇಲ್ ನಮೂದಿಸಿ', 'Enter a valid email') }));
                             } else {
                               setContactFormErrors(prev => ({ ...prev, email: undefined }));
                             }
@@ -3948,7 +3895,7 @@ export default function App() {
                         onBlur={() => {
                           setContactTouched(prev => ({ ...prev, email: true }));
                           if (contactEmail.trim() && !validateContactEmail(contactEmail)) {
-                            setContactFormErrors(prev => ({ ...prev, email: lang === 'kn' ? 'ಮಾನ್ಯ ಇಮೇಲ್ ನಮೂದಿಸಿ' : 'Enter a valid email' }));
+                            setContactFormErrors(prev => ({ ...prev, email: tx('ಮಾನ್ಯ ಇಮೇಲ್ ನಮೂದಿಸಿ', 'Enter a valid email') }));
                           } else {
                             setContactFormErrors(prev => ({ ...prev, email: undefined }));
                           }
@@ -3967,16 +3914,16 @@ export default function App() {
 
                   <div>
                     <label className="block text-sm sm:text-base font-extrabold text-stone-700 uppercase mb-1.5">
-                      {lang === 'kn' ? 'ಮೊಬೈಲ್ ಸಂಖ್ಯೆ' : 'Phone Number'}
+                      {tx('ಮೊಬೈಲ್ ಸಂಖ್ಯೆ', 'Phone Number')}
                     </label>
-                    <input 
+                    <input
                       type="tel"
                       value={contactPhone}
                       onChange={(e) => {
                         setContactPhone(e.target.value);
                         if (contactTouched.phone) {
                           if (e.target.value.trim() && !validateContactPhone(e.target.value)) {
-                            setContactFormErrors(prev => ({ ...prev, phone: lang === 'kn' ? 'ಮಾನ್ಯ ಭಾರತೀಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ (10 ಅಂಕಿಗಳು)' : 'Enter a valid Indian phone number' }));
+                            setContactFormErrors(prev => ({ ...prev, phone: tx('ಮಾನ್ಯ ಭಾರತೀಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ (10 ಅಂಕಿಗಳು)', 'Enter a valid Indian phone number') }));
                           } else {
                             setContactFormErrors(prev => ({ ...prev, phone: undefined }));
                           }
@@ -3985,7 +3932,7 @@ export default function App() {
                       onBlur={() => {
                         setContactTouched(prev => ({ ...prev, phone: true }));
                         if (contactPhone.trim() && !validateContactPhone(contactPhone)) {
-                          setContactFormErrors(prev => ({ ...prev, phone: lang === 'kn' ? 'ಮಾನ್ಯ ಭಾರತೀಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ (10 ಅಂಕಿಗಳು)' : 'Enter a valid Indian phone number' }));
+                          setContactFormErrors(prev => ({ ...prev, phone: tx('ಮಾನ್ಯ ಭಾರತೀಯ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ (10 ಅಂಕಿಗಳು)', 'Enter a valid Indian phone number') }));
                         } else {
                           setContactFormErrors(prev => ({ ...prev, phone: undefined }));
                         }
@@ -4003,9 +3950,9 @@ export default function App() {
 
                   <div>
                     <label className="block text-sm sm:text-base font-extrabold text-stone-700 uppercase mb-1.5">
-                      {lang === 'kn' ? 'ಸಂದೇಶ / ಪ್ರಾರ್ಥನೆ ವಿವರ' : 'Prayer / Inquiry Details'} *
+                      {tx('ಸಂದೇಶ / ಪ್ರಾರ್ಥನೆ ವಿವರ', 'Prayer / Inquiry Details')} *
                     </label>
-                    <textarea 
+                    <textarea
                       required
                       rows={4}
                       value={contactMessage}
@@ -4013,7 +3960,7 @@ export default function App() {
                         setContactMessage(e.target.value);
                         if (contactTouched.message) {
                           if (!e.target.value.trim()) {
-                            setContactFormErrors(prev => ({ ...prev, message: lang === 'kn' ? 'ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ' : 'Please enter your message' }));
+                            setContactFormErrors(prev => ({ ...prev, message: tx('ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ', 'Please enter your message') }));
                           } else {
                             setContactFormErrors(prev => ({ ...prev, message: undefined }));
                           }
@@ -4022,7 +3969,7 @@ export default function App() {
                       onBlur={() => {
                         setContactTouched(prev => ({ ...prev, message: true }));
                         if (!contactMessage.trim()) {
-                          setContactFormErrors(prev => ({ ...prev, message: lang === 'kn' ? 'ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ' : 'Please enter your message' }));
+                          setContactFormErrors(prev => ({ ...prev, message: tx('ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ', 'Please enter your message') }));
                         } else {
                           setContactFormErrors(prev => ({ ...prev, message: undefined }));
                         }
@@ -4077,7 +4024,7 @@ export default function App() {
                     {isSubmittingContact ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>{lang === 'kn' ? 'ಸಲ್ಲಿಸಲಾಗುತ್ತಿದೆ...' : 'Submitting...'}</span>
+                        <span>{tx('ಸಲ್ಲಿಸಲಾಗುತ್ತಿದೆ...', 'Submitting...')}</span>
                       </>
                     ) : (
                       <>
@@ -4097,10 +4044,10 @@ export default function App() {
           <div className="mt-16 pt-16 border-t border-stone-200">
             <div className="flex flex-col items-center mb-12 text-center">
               <span className="text-saffron-600 font-bold tracking-widest text-sm sm:text-base uppercase mb-2">
-                {lang === 'kn' ? 'ಆಡಳಿತ ಮಂಡಳಿ ಪದಾಧಿಕಾರಿಗಳು' : 'Temple Administration & Trust'}
+                {tx('ಆಡಳಿತ ಮಂಡಳಿ ಪದಾಧಿಕಾರಿಗಳು', 'Temple Administration & Trust')}
               </span>
               <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight font-display text-stone-900 mb-3">
-                {lang === 'kn' ? 'ಮುಖ್ಯ ಸಂಪರ್ಕ ಅಧಿಕಾರಿಗಳು' : 'Key Contact Officials'}
+                {tx('ಮುಖ್ಯ ಸಂಪರ್ಕ ಅಧಿಕಾರಿಗಳು', 'Key Contact Officials')}
               </h3>
               <div className="w-20 h-1 bg-gradient-to-r from-saffron-500 to-amber-500 rounded-full" />
             </div>
@@ -4115,13 +4062,13 @@ export default function App() {
                     <span className="text-saffron-600 text-sm sm:text-base font-extrabold uppercase tracking-wider mb-4 block">
                       {role}
                     </span>
-                      
+
                       {/* Rounded Photo below designation */}
                       <div className="relative w-32 h-32 mb-4 rounded-full overflow-hidden border-4 border-white shadow-md group-hover:border-saffron-100 transition-colors duration-300 flex items-center justify-center bg-stone-100">
                         {member.photo_url ? (
-                          <img 
-                            src={member.photo_url} 
-                            alt={name} 
+                          <img
+                            src={member.photo_url}
+                            alt={name}
                             className="w-full h-full object-cover"
                             referrerPolicy="no-referrer"
                             onError={(e) => {
@@ -4144,23 +4091,23 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                      
+
                       {/* Name below photo */}
                       <h4 className="font-extrabold text-stone-900 text-xl sm:text-2xl mb-1.5 font-display">
                         {name}
                       </h4>
-                      
+
                       {/* Action Symbols Only (Phone Call, WhatsApp Chat, Email) */}
                       {(member.phone || member.email) && (() => {
                         const cleanPhone = member.phone ? member.phone.replace(/[^0-9+]/g, '') : '';
-                        const waDigits = member.phone ? member.phone.replace(/[^0-9]/g, '') : '';
+                        const waDigits = member.phone ? toWhatsAppNumber(member.phone) : '';
                         const waText = encodeURIComponent(
                           lang === 'kn'
                             ? `ನಮಸ್ತೆ ${name}, ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ ಹಾಡಿಕೆರೆಯ ವಿಚಾರಣೆಗಾಗಿ ಸಂಪರ್ಕಿಸುತ್ತಿದ್ದೇನೆ.`
                             : `Namaste ${name}, I am contacting you regarding Sri Shaneshwara Temple, Haadikere.`
                         );
                         const emailSubject = encodeURIComponent(
-                          lang === 'kn' 
+                          lang === 'kn'
                             ? `ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ ಹಾಡಿಕೆರೆ - ವಿಚಾರಣೆ (${name})`
                             : `Sri Shaneshwara Temple Haadikere - Inquiry (${name})`
                         );
@@ -4222,20 +4169,20 @@ export default function App() {
       {/* 6. PRIVACY POLICY SECTION */}
       {currentPage === 'privacy' && (
         <div ref={privacySectionRef}>
-          <PrivacyPolicy 
-            lang={lang} 
-            navigateToPage={navigateToPage} 
-            settings={settings} 
+          <PrivacyPolicy
+            lang={lang}
+            navigateToPage={navigateToPage}
+            settings={settings}
           />
         </div>
       )}
 
       {/* 7. 404 NOT FOUND SECTION */}
       {currentPage === 'notfound' && (
-        <NotFound 
-          lang={lang} 
-          navigateToPage={navigateToPage} 
-          settings={settings} 
+        <NotFound
+          lang={lang}
+          navigateToPage={navigateToPage}
+          settings={settings}
         />
       )}
         </motion.main>
@@ -4245,10 +4192,10 @@ export default function App() {
       <footer id="footer" className="bg-stone-950 text-stone-200 pt-16 pb-24 sm:pb-20 border-t border-stone-800 relative z-10 overflow-hidden">
         {/* Traditional mango leaf (toran) style border decoration at the top edge of footer */}
         <SpiritualBannerBorder className="absolute top-0 left-0 right-0 opacity-40" />
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
-            
+
             {/* Column 1: Temple Info & Address & Socials */}
             <div className="space-y-4">
               <div className="flex items-center gap-2.5">
@@ -4262,19 +4209,18 @@ export default function App() {
                   </span>
                 </div>
               </div>
-              
+
               <p className="text-sm sm:text-base text-stone-300 leading-relaxed font-normal">
-                {settings?.address || (lang === 'kn' 
-                  ? 'ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ, ಬ್ರಹ್ಮಾವರ ತಾಲ್ಲೂಕು, ಉಡುಪಿ ಜಿಲ್ಲೆ, ಕರ್ನಾಟಕ - 576221.'
-                  : 'Shantamurthy Sri Shaneshwara Temple, Sri Kshetra Haadikere, Brahmavara Taluk, Udupi District, Karnataka - 576221.')}
+                {settings?.address || (tx('ಶಾಂತಮೂರ್ತಿ ಶ್ರೀ ಶನೀಶ್ವರ ದೇವಸ್ಥಾನ, ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ, ಬ್ರಹ್ಮಾವರ ತಾಲ್ಲೂಕು, ಉಡುಪಿ ಜಿಲ್ಲೆ, ಕರ್ನಾಟಕ - 576221.', 'Shantamurthy Sri Shaneshwara Temple, Sri Kshetra Haadikere, Brahmavara Taluk, Udupi District, Karnataka - 576221.'))}
               </p>
 
               {/* Social Real Icons */}
+              {content.features.show_social_icons !== false && (
               <div className="flex items-center gap-3 pt-2">
                 {/* WhatsApp */}
-                <a 
-                  href={settings?.whatsapp_number ? `https://wa.me/${settings.whatsapp_number.replace(/[^0-9]/g, '')}` : "https://wa.me/919902207990"} 
-                  target="_blank" 
+                <a
+                  href={templeWhatsAppUrl}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="w-9 h-9 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-stone-400 hover:text-green-500 hover:border-green-500/50 hover:bg-green-500/5 transition-all duration-300 shadow-sm"
                   title="WhatsApp Contact"
@@ -4285,42 +4231,60 @@ export default function App() {
                 </a>
 
                 {/* Instagram */}
-                <a 
-                  href="https://instagram.com/haadikere_shanitemple" 
-                  target="_blank" 
+                {content.social.instagram && (
+                <a
+                  href={content.social.instagram}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="w-9 h-9 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-stone-400 hover:text-pink-500 hover:border-pink-500/50 hover:bg-pink-500/5 transition-all duration-300 shadow-sm"
                   title="Instagram Page"
                 >
                   <Instagram className="w-4.5 h-4.5" />
                 </a>
+                )}
 
                 {/* Facebook */}
-                <a 
-                  href="https://facebook.com/haadikereshanitemple" 
-                  target="_blank" 
+                {content.social.facebook && (
+                <a
+                  href={content.social.facebook}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="w-9 h-9 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-stone-400 hover:text-blue-500 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all duration-300 shadow-sm"
                   title="Facebook Page"
                 >
                   <Facebook className="w-4.5 h-4.5" />
                 </a>
+                )}
+
+                {/* YouTube (shown only when a link is set in the admin panel) */}
+                {content.social.youtube && (
+                <a
+                  href={content.social.youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-stone-400 hover:text-red-500 hover:border-red-500/50 hover:bg-red-500/5 transition-all duration-300 shadow-sm"
+                  title="YouTube Channel"
+                >
+                  <Youtube className="w-4.5 h-4.5" />
+                </a>
+                )}
 
                 {/* Email */}
-                <a 
-                  href={`mailto:${settings?.email || 'shanthamoorthyshaneshwara1995@gmail.com'}`} 
+                <a
+                  href={`mailto:${settings?.email || t.contactSection.email}`}
                   className="w-9 h-9 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-stone-400 hover:text-saffron-500 hover:border-saffron-500/50 hover:bg-saffron-500/5 transition-all duration-300 shadow-sm"
                   title="Email Us"
                 >
                   <Mail className="w-4.5 h-4.5" />
                 </a>
               </div>
+              )}
             </div>
 
             {/* Column 2: Quick Links */}
             <div className="space-y-4">
               <h3 className="text-base sm:text-lg font-extrabold uppercase tracking-wider text-white border-l-2 border-saffron-500 pl-3">
-                {lang === 'kn' ? 'ತ್ವರಿತ ಸಂಪರ್ಕಗಳು' : 'Quick Navigation'}
+                {tx('ತ್ವರಿತ ಸಂಪರ್ಕಗಳು', 'Quick Navigation')}
               </h3>
               <ul className="space-y-2.5 text-sm sm:text-base">
                 {(['home', 'about', 'gallery', 'seva', 'contact'] as const).map((section) => (
@@ -4342,81 +4306,83 @@ export default function App() {
                       currentPage === 'privacy' ? 'text-saffron-400 font-bold' : 'text-stone-300'
                     }`}
                   >
-                    ✦ {t.nav.privacy || (lang === 'kn' ? 'ಗೌಪ್ಯತಾ ನೀತಿ' : 'Privacy Policy')}
+                    ✦ {t.nav.privacy || (tx('ಗೌಪ್ಯತಾ ನೀತಿ', 'Privacy Policy'))}
                   </button>
                 </li>
               </ul>
             </div>
 
-            {/* Column 3: Temple Timings */}
+            {/* Column 3: Temple Timings (editable in admin → Timings) */}
+            {content.features.show_footer_timings !== false && (
             <div className="space-y-4">
               <h3 className="text-base sm:text-lg font-extrabold uppercase tracking-wider text-white border-l-2 border-saffron-500 pl-3">
-                {lang === 'kn' ? 'ದರ್ಶನದ ಸಮಯ' : 'Temple Timings'}
+                {tx('ದರ್ಶನದ ಸಮಯ', 'Temple Timings')}
               </h3>
               <div className="space-y-3.5 text-sm sm:text-base text-stone-300 font-normal">
                 <div className="bg-stone-900/50 p-3 rounded-lg border border-stone-800">
                   <p className="font-extrabold text-yellow-400 mb-1">
-                    {lang === 'kn' ? 'ಸೋಮವಾರ ಮತ್ತು ಶನಿವಾರ (ವಿಶೇಷ ಪೂಜೆ)' : 'Monday & Saturday (Special Puja)'}
+                    {lang === 'kn' ? content.timings.special_title_kn : content.timings.special_title_en}
                   </p>
                   <p className="text-white font-medium">
-                    {lang === 'kn' ? 'ಬೆಳಿಗ್ಗೆ 6:00 ರಿಂದ ರಾತ್ರಿ 8:00 ರವರೆಗೆ' : '6:00 AM to 8:00 PM'}
+                    {lang === 'kn' ? content.timings.special_hours_kn : content.timings.special_hours_en}
                   </p>
                 </div>
                 <div className="bg-stone-900/50 p-3 rounded-lg border border-stone-850">
                   <p className="font-extrabold text-yellow-100 mb-1">
-                    {lang === 'kn' ? 'ಇತರ ದಿನಗಳು' : 'Other Days'}
+                    {lang === 'kn' ? content.timings.other_title_kn : content.timings.other_title_en}
                   </p>
                   <p className="text-stone-200">
-                    {lang === 'kn' 
-                      ? 'ಬೆಳಿಗ್ಗೆ 7:00 - ಮಧ್ಯಾಹ್ನ 1:00 | ಸಂಜೆ 4:30 - ರಾತ್ರಿ 7:30' 
-                      : '7:00 AM - 1:00 PM | 4:30 PM - 7:30 PM'}
+                    {lang === 'kn' ? content.timings.other_hours_kn : content.timings.other_hours_en}
                   </p>
                 </div>
               </div>
             </div>
+            )}
 
             {/* Column 4: Google Map Integration */}
+            {content.features.show_footer_map !== false && (
             <div className="space-y-4">
               <h3 className="text-base sm:text-lg font-extrabold uppercase tracking-wider text-white border-l-2 border-saffron-500 pl-3">
-                {lang === 'kn' ? 'ಗೂಗಲ್ ಮ್ಯಾಪ್ ದಾರಿ' : 'Google Map Route'}
+                {tx('ಗೂಗಲ್ ಮ್ಯಾಪ್ ದಾರಿ', 'Google Map Route')}
               </h3>
               <div className="rounded-xl overflow-hidden border border-stone-800 shadow-md h-32 w-full bg-stone-900 relative group">
-                <iframe 
-                  src={getValidMapEmbedUrl(settings?.google_maps_embed_url)} 
-                  width="100%" 
-                  height="100%" 
-                  style={{ border: 0 }} 
-                  allowFullScreen={true} 
-                  loading="lazy" 
+                <iframe
+                  src={getValidMapEmbedUrl(settings?.google_maps_embed_url)}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen={true}
+                  loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                   title="Shri Shaneshwara Temple Haadikere Map"
                   className="w-full h-full opacity-90 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                 />
                 {/* Direct Clickable Map Overlay in Footer */}
                 <a
-                  href={CANONICAL_SHANTAMURTI_DIRECTIONS_URL}
+                  href={templeDirectionsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={lang === 'kn' ? 'ದೇವಸ್ಥಾನಕ್ಕೆ ಲೈವ್ ದಾರಿ ಪಡೆಯಿರಿ' : 'Get live directions to the temple'}
-                  title={lang === 'kn' ? 'ದೇವಸ್ಥಾನಕ್ಕೆ ದಾರಿ ಪಡೆಯಲು ಕ್ಲಿಕ್ ಮಾಡಿ' : 'Click to get directions to temple'}
+                  aria-label={tx('ದೇವಸ್ಥಾನಕ್ಕೆ ಲೈವ್ ದಾರಿ ಪಡೆಯಿರಿ', 'Get live directions to the temple')}
+                  title={tx('ದೇವಸ್ಥಾನಕ್ಕೆ ದಾರಿ ಪಡೆಯಲು ಕ್ಲಿಕ್ ಮಾಡಿ', 'Click to get directions to temple')}
                   className="absolute inset-0 z-10 flex items-center justify-center p-2 bg-stone-950/20 group-hover:bg-stone-950/50 transition-colors cursor-pointer"
                 >
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-saffron-600 hover:bg-saffron-500 text-white text-xs font-bold shadow-md transition-transform group-hover:scale-105">
                     <MapPin className="w-3.5 h-3.5 animate-bounce" />
-                    <span>{lang === 'kn' ? 'ಲೈವ್ ದಾರಿ ಪಡೆಯಿರಿ' : 'Get Live Directions'} ➔</span>
+                    <span>{tx('ಲೈವ್ ದಾರಿ ಪಡೆಯಿರಿ', 'Get Live Directions')} ➔</span>
                   </span>
                 </a>
               </div>
-              <a 
-                href={CANONICAL_SHANTAMURTI_DIRECTIONS_URL} 
-                target="_blank" 
-                rel="noopener noreferrer" 
+              <a
+                href={templeDirectionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-xs sm:text-sm text-saffron-400 hover:text-saffron-300 flex items-center gap-1 hover:underline transition-all mt-1 cursor-pointer font-bold"
               >
                 <MapPin className="w-4 h-4 text-saffron-500 animate-pulse" />
-                <span>{lang === 'kn' ? 'ಲೈವ್ ದಾರಿ ನಕ್ಷೆ ಪಡೆಯಿರಿ' : 'Get Live Directions'} ➔</span>
+                <span>{tx('ಲೈವ್ ದಾರಿ ನಕ್ಷೆ ಪಡೆಯಿರಿ', 'Get Live Directions')} ➔</span>
               </a>
             </div>
+            )}
 
           </div>
 
@@ -4426,28 +4392,30 @@ export default function App() {
           <div className="flex flex-col items-center justify-center gap-2 text-sm sm:text-base text-stone-300 text-center px-4 sm:px-6 relative z-20 max-w-4xl mx-auto">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 font-normal">
               <span>
-                © 2026 {lang === 'kn' ? 'ಶ್ರೀ ಕ್ಷೇತ್ರ ಹಾಡಿಕೆರೆ ದೇವಸ್ಥಾನ ಟ್ರಸ್ಟ್. ಎಲ್ಲಾ ಹಕ್ಕುಗಳನ್ನು ಕಾಯ್ದಿರಿಸಲಾಗಿದೆ.' : 'Shri Kshetra Haadikere Temple Trust. All rights reserved.'}
+                © {new Date().getFullYear()} {(lang === 'kn' ? content.footer.copyright_kn : content.footer.copyright_en) || ''}
               </span>
               <span className="hidden sm:inline text-stone-600">•</span>
-              <button 
+              <button
                 onClick={() => navigateToPage('privacy')}
                 className="text-stone-300 hover:text-saffron-400 underline transition-colors cursor-pointer"
               >
-                {lang === 'kn' ? 'ಗೌಪ್ಯತಾ ನೀತಿ (Privacy Policy)' : 'Privacy Policy'}
+                {tx('ಗೌಪ್ಯತಾ ನೀತಿ (Privacy Policy)', 'Privacy Policy')}
               </button>
             </div>
+            {content.footer.show_developer !== false && content.footer.developer_name && (
             <p className="font-semibold text-stone-200">
-              Designed & Developed by{' '}
-              <a 
-                href="#" 
-                /* Replace '#' with your portfolio URL e.g. 'https://your-portfolio.com' */
-                title="Developer: Yashodhar Mogaveer"
+              {content.footer.developer_label || 'Designed & Developed by'}{' '}
+              <a
+                href={content.footer.developer_url || '#'}
+                {...(content.footer.developer_url ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                title={`Developer: ${content.footer.developer_name}`}
                 className="text-amber-400 font-bold tracking-wide hover:text-saffron-300 transition-colors duration-200 font-display no-underline"
               >
-                Yashodhar Mogaveer
+                {content.footer.developer_name}
               </a>
               .
             </p>
+            )}
           </div>
 
         </div>
@@ -4455,7 +4423,7 @@ export default function App() {
 
       {/* Dynamic Lightbox Modal with Pan, Zoom, Touch Swipe, Download, Key Shortcuts */}
       {(() => {
-        const activeList = activeGalleryTab === 'images' 
+        const activeList = activeGalleryTab === 'images'
           ? galleryImages
           : galleryVideos;
 
@@ -4548,11 +4516,11 @@ export default function App() {
         return (
           <AnimatePresence>
             {activeLightboxItem && (
-              <div 
+              <div
                 className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4"
               >
                 {/* Overlay Backdrop */}
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -4561,7 +4529,7 @@ export default function App() {
                 />
 
                 {/* Lightbox Box */}
-                <motion.div 
+                <motion.div
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
@@ -4598,10 +4566,10 @@ export default function App() {
                   <div className="relative max-h-[75vh] sm:max-h-[80vh] w-full flex items-center justify-center bg-black/40 rounded-2xl border border-white/10 p-1.5 overflow-hidden shadow-2xl">
                     {activeLightboxItem.type === 'image' ? (
                       <div className="relative w-full max-h-[72vh] sm:max-h-[78vh] flex items-center justify-center">
-                        <motion.img 
+                        <motion.img
                           ref={lightboxImageRef}
                           key={activeLightboxItem.src}
-                          src={activeLightboxItem.src} 
+                          src={activeLightboxItem.src}
                           alt="Gallery preview"
                           referrerPolicy="no-referrer"
                           drag={zoomLevel > 1}
@@ -4614,10 +4582,10 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="relative w-full max-h-[75vh] sm:max-h-[80vh] flex items-center justify-center">
-                        <video 
+                        <video
                           ref={lightboxVideoRef}
                           key={activeLightboxItem.src}
-                          src={activeLightboxItem.src} 
+                          src={activeLightboxItem.src}
                           controls
                           autoPlay
                           playsInline
@@ -4694,7 +4662,7 @@ export default function App() {
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {showBackToTop && (
-            <motion.div 
+            <motion.div
               id="floating-actions-container"
               initial={{ opacity: 0, y: 20, scale: 0.85 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -4707,43 +4675,48 @@ export default function App() {
               }}
             >
               {/* 1. Back to Top Floating Button */}
+              {content.features.show_back_to_top !== false && (
               <motion.button
                 key="back-to-top-btn"
                 whileHover={{ scale: 1.1, y: -2 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                 className="flex items-center justify-center bg-gradient-to-r from-saffron-600 to-amber-500 hover:from-saffron-500 hover:to-amber-400 text-white w-12 h-12 sm:w-13 sm:h-13 rounded-full shadow-xl hover:shadow-saffron-500/40 transition-all duration-300 cursor-pointer border-2 border-white/40 focus:ring-2 focus:ring-saffron-500 touch-manipulation active:scale-95"
-                title={lang === 'kn' ? 'ಮೇಲಕ್ಕೆ ಹೋಗಿ' : 'Back to Top'}
-                aria-label={lang === 'kn' ? 'ಮೇಲಕ್ಕೆ ಹೋಗಿ' : 'Back to Top'}
+                title={tx('ಮೇಲಕ್ಕೆ ಹೋಗಿ', 'Back to Top')}
+                aria-label={tx('ಮೇಲಕ್ಕೆ ಹೋಗಿ', 'Back to Top')}
                 id="back-to-top-btn"
               >
                 <ArrowUp className="w-5 h-5 sm:w-6 sm:h-6 text-white shrink-0 animate-bounce-slow" />
               </motion.button>
+              )}
 
               {/* 2. WhatsApp Floating Button */}
+              {content.features.show_whatsapp_float !== false && (
               <motion.a
                 key="whatsapp-floating-btn"
-                href={settings?.whatsapp_number ? `https://wa.me/${settings.whatsapp_number.replace(/[^0-9]/g, '')}` : "https://wa.me/919902207990"}
+                href={templeWhatsAppUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e: React.MouseEvent) => { e.preventDefault(); openWhatsApp(templeWhatsAppUrl); }}
                 whileHover={{ scale: 1.08, y: -2 }}
                 whileTap={{ scale: 0.92 }}
                 className="flex items-center justify-center bg-[#25D366] hover:bg-[#20ba5a] text-white w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-2xl hover:shadow-[#25D366]/50 transition-all duration-300 border-2 border-white/50 cursor-pointer focus:ring-2 focus:ring-[#25D366] touch-manipulation relative group"
-                title={lang === 'kn' ? 'ವಾಟ್ಸಾಪ್ ಸಹಾಯ' : 'WhatsApp Support'}
-                aria-label={lang === 'kn' ? 'ವಾಟ್ಸಾಪ್ ಸಹಾಯ' : 'WhatsApp Support'}
+                title={tx('ವಾಟ್ಸಾಪ್ ಸಹಾಯ', 'WhatsApp Support')}
+                aria-label={tx('ವಾಟ್ಸಾಪ್ ಸಹಾಯ', 'WhatsApp Support')}
                 id="whatsapp-floating-btn"
               >
                 {/* Pulsing aura ring around WhatsApp */}
                 <span className="absolute -inset-1 rounded-full bg-[#25D366]/50 animate-ping opacity-60 pointer-events-none" />
-                
-                <svg 
-                  viewBox="0 0 448 512" 
+
+                <svg
+                  viewBox="0 0 448 512"
                   className="w-6 h-6 sm:w-7 sm:h-7 fill-white relative z-10 shrink-0 drop-shadow-xs group-hover:scale-110 transition-transform duration-200"
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
                 </svg>
               </motion.a>
+              )}
             </motion.div>
           )}
         </AnimatePresence>,

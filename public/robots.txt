@@ -1,6 +1,5 @@
-# Robots.txt for Shantamurthy Sri Shaneshwara Temple, Haadikere
+# Replaced at build time by scripts/postbuild.ts (values come from the admin panel)
 User-agent: *
 Allow: /
 
-# Canonical Sitemap Reference
-Sitemap: https://haadikereshanitemple.org/sitemap.xml
+Sitemap: https://www.haadikereshaneshwara.com/sitemap.xml
