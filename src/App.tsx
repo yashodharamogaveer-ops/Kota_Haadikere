@@ -2604,7 +2604,7 @@ export default function App() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                  {galleryItems.slice(0, 3).map((item) => (
+                  {galleryImages.slice(0, 3).map((item) => (
                     <div
                       key={item.id}
                       className="gsap-home-gallery-item group relative rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-stone-200/40 bg-white h-[280px]"
